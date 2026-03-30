@@ -19,7 +19,11 @@ const jobs = [
   },
 ];
 
-export default function JobDetail({ params }: { params: { job: string } }) {
+export default function JobDetail({
+  params,
+}: {
+  params: { job: string };
+}) {
   const job = jobs.find((j) => j.slug === params.job);
 
   if (!job) {
