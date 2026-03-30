@@ -1,13 +1,18 @@
+import Link from "next/link";
+
 const jobs = [
   {
+    slug: "raktaros",
     title: "Raktáros",
     location: "Székesfehérvár",
   },
   {
+    slug: "szerelo",
     title: "Teherautó szerelő",
     location: "Hajós",
   },
   {
+    slug: "gepkezelo",
     title: "Gépkezelő",
     location: "Győr",
   },
@@ -16,14 +21,12 @@ const jobs = [
 export default function JobsPage() {
   return (
     <div className="min-h-screen bg-black text-white px-6 py-20">
-      <h1 className="text-4xl font-bold mb-10 text-center">
-        Állásajánlatok
-      </h1>
+      <h1 className="text-4xl font-bold mb-10 text-center">Állásajánlatok</h1>
 
       <div className="max-w-3xl mx-auto space-y-4">
-        {jobs.map((job, index) => (
+        {jobs.map((job) => (
           <div
-            key={index}
+            key={job.slug}
             className="bg-gray-900 p-6 rounded-xl flex justify-between items-center"
           >
             <div>
@@ -31,9 +34,11 @@ export default function JobsPage() {
               <p className="text-gray-400">{job.location}</p>
             </div>
 
-            <button className="bg-white text-black px-4 py-2 rounded-lg">
-              Megnézem
-            </button>
+            <Link href={`/jobs/${job.slug}`}>
+              <span className="bg-white text-black px-4 py-2 rounded-lg inline-block">
+                Megnézem
+              </span>
+            </Link>
           </div>
         ))}
       </div>
