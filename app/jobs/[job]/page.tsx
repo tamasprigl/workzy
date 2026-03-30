@@ -40,7 +40,6 @@ export default async function JobDetail({
     <div className="min-h-screen bg-black text-white px-6 py-20 max-w-3xl mx-auto">
       <h1 className="text-4xl font-bold mb-4">{job.title}</h1>
       <p className="text-gray-400 mb-6">{job.location}</p>
-
       <p className="mb-10">{job.description}</p>
 
       <button className="bg-white text-black px-6 py-3 rounded-xl">
