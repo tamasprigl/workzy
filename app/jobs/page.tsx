@@ -1,30 +1,18 @@
 import Link from "next/link";
-
-const jobs = [
-  {
-    slug: "raktaros",
-    title: "Raktáros",
-    location: "Székesfehérvár",
-  },
-  {
-    slug: "szerelo",
-    title: "Teherautó szerelő",
-    location: "Hajós",
-  },
-  {
-    slug: "gepkezelo",
-    title: "Gépkezelő",
-    location: "Győr",
-  },
-];
+import { jobs } from "./data";
 
 export default function JobsPage() {
+  const jobsList = Object.entries(jobs).map(([slug, job]) => ({
+    slug,
+    ...job,
+  }));
+
   return (
     <div className="min-h-screen bg-black text-white px-6 py-20">
       <h1 className="text-4xl font-bold mb-10 text-center">Állásajánlatok</h1>
 
       <div className="max-w-3xl mx-auto space-y-4">
-        {jobs.map((job) => (
+        {jobsList.map((job) => (
           <div
             key={job.slug}
             className="bg-gray-900 p-6 rounded-xl flex justify-between items-center"

@@ -1,27 +1,12 @@
+import ApplyForm from "./ApplyForm";
+import { jobs } from "../data";
+
 export default async function JobDetail({
   params,
 }: {
   params: Promise<{ job: string }>;
 }) {
   const { job } = await params;
-
-  const jobs = {
-    raktaros: {
-      title: "Raktáros",
-      location: "Székesfehérvár",
-      description: "Raktári feladatok ellátása, áruk kezelése.",
-    },
-    szerelo: {
-      title: "Teherautó szerelő",
-      location: "Hajós",
-      description: "Teherautók javítása és karbantartása.",
-    },
-    gepkezelo: {
-      title: "Gépkezelő",
-      location: "Győr",
-      description: "Gyártósori gépek kezelése.",
-    },
-  } as const;
 
   const selectedJob = jobs[job as keyof typeof jobs];
 
@@ -50,18 +35,7 @@ export default async function JobDetail({
           <p className="text-gray-300 leading-7">{selectedJob.description}</p>
         </div>
 
-        <div className="flex flex-wrap gap-4">
-          <button className="bg-white text-black px-6 py-3 rounded-xl font-semibold hover:bg-gray-200 transition">
-            Jelentkezem
-          </button>
-
-          <a
-            href="/jobs"
-            className="border border-gray-700 px-6 py-3 rounded-xl hover:bg-gray-900 transition"
-          >
-            Vissza az állásokhoz
-          </a>
-        </div>
+        <ApplyForm jobSlug={job} jobTitle={selectedJob.title} />
       </section>
     </main>
   );
