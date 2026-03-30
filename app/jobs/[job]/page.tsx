@@ -19,12 +19,14 @@ const jobs = [
   },
 ];
 
-export default function JobDetail({
+export default async function JobDetail({
   params,
 }: {
-  params: { job: string };
+  params: Promise<{ job: string }>;
 }) {
-  const job = jobs.find((j) => j.slug === params.job);
+  const { job: jobSlug } = await params;
+
+  const job = jobs.find((j) => j.slug === jobSlug);
 
   if (!job) {
     return (
