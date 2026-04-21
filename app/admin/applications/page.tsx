@@ -35,18 +35,24 @@ export default async function AdminApplicationsPage({
 
       let airtableRecords: any[] = [];
 
-      try {
-        airtableRecords = await base(tableName)
-          .select({
-            filterByFormula: `FIND("${userId}", ARRAYJOIN({User}))`,
-            sort: [{ field: "Created", direction: "desc" }],
-          })
-          .all();
-      } catch {
-        airtableRecords = await base(tableName).select({
-          filterByFormula: `FIND("${userId}", ARRAYJOIN({User}))`
-        }).all();
-      }
+try {
+  airtableRecords = [
+    ...(await base(tableName)
+      .select({
+        filterByFormula: `FIND("${userId}", ARRAYJOIN({User}))`,
+        sort: [{ field: "Created", direction: "desc" }],
+      })
+      .all()),
+  ];
+} catch {
+  airtableRecords = [
+    ...(await base(tableName)
+      .select({
+        filterByFormula: `FIND("${userId}", ARRAYJOIN({User}))`,
+      })
+      .all()),
+  ];
+}
 
       allRecords = airtableRecords.map((record: any) => ({
         id: record.id,
