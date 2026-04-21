@@ -1,49 +1,186 @@
 import Link from "next/link";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+type AdminLayoutProps = {
+  children: ReactNode;
+};
+
+const navItems = [
+  {
+    href: "/admin",
+    label: "Vezérlőpult",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M3 9.5 12 4l9 5.5" />
+        <path d="M5 10v10h14V10" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/jobs",
+    label: "Állások",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/applications",
+    label: "Jelentkezők",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/jobs/new",
+    label: "Új állás",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </svg>
+    ),
+  },
+];
+
+export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-black text-white font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0 bg-gray-950 border-r border-gray-800 hidden md:block relative z-10 isolate h-screen sticky top-0">
-        <div className="p-6">
-          <Link href="/admin">
-            <span className="text-2xl font-bold tracking-tighter text-white">Workzy <span className="text-blue-500">Admin</span></span>
-          </Link>
+    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-white text-slate-900">
+      <div className="grid min-h-screen lg:grid-cols-[260px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-slate-200 bg-white/80 backdrop-blur-xl lg:flex lg:flex-col">
+          <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-600 text-white shadow-[0_10px_30px_rgba(14,165,233,0.25)]">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 12c0-3.314 2.686-6 6-6 2.761 0 5 2.239 5 5v7H9a3 3 0 0 1-3-3v-3Z" />
+                <path d="M7 18h10" />
+              </svg>
+            </div>
+
+            <div>
+              <div className="text-lg font-black tracking-tight text-slate-900">
+                Workzy Admin
+              </div>
+              <div className="text-sm text-slate-500">Toborzási központ</div>
+            </div>
+          </div>
+
+          <nav className="flex-1 space-y-1 px-4 py-6">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
+              >
+                <span className="text-slate-400 transition group-hover:text-sky-600">
+                  {item.icon}
+                </span>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="border-t border-slate-200 p-4">
+            <Link
+              href="/"
+              className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+            >
+              Vissza az oldalra
+            </Link>
+          </div>
+        </aside>
+
+        <div className="min-w-0">
+          <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/75 backdrop-blur-xl">
+            <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-4 md:px-6 lg:px-8">
+              <div>
+                <div className="text-sm font-medium text-slate-500">
+                  Workzy Admin
+                </div>
+                <div className="text-lg font-bold text-slate-900">
+                  Álláskezelés és kampányindítás
+                </div>
+              </div>
+
+              <div className="hidden items-center gap-3 sm:flex">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                >
+                  Súgó
+                </button>
+
+                <Link
+                  href="/admin/jobs/new"
+                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600"
+                >
+                  Új állás
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-6 lg:px-8">
+            {children}
+          </div>
         </div>
-
-        <nav className="mt-6 px-4 space-y-2">
-          <Link href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all group">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500 group-hover:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-            Vezérlőpult
-          </Link>
-          
-          <Link href="/admin/jobs" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all group">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500 group-hover:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12h.01"/><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M22 13v-6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v6"/><path d="M2 13 4 20h16l2-7"/></svg>
-            Állások
-          </Link>
-
-          <Link href="/admin/jobs/new" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all group">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500 group-hover:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-            Új Állás
-          </Link>
-
-          <Link href="/" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all group mt-8 border border-gray-800/60">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500 group-hover:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-            Vissza az oldalra
-          </Link>
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 bg-black relative isolate min-h-screen">
-        {/* Subtle background glow */}
-        <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-blue-900/10 to-transparent -z-10 pointer-events-none" />
-        
-        <div className="p-8 lg:p-12 w-full max-w-7xl mx-auto">
-          {children}
-        </div>
-      </main>
+      </div>
     </div>
   );
 }

@@ -1,133 +1,357 @@
 import Link from "next/link";
 import Airtable from "airtable";
+import { redirect } from "next/navigation";
+import { getCurrentAirtableUser } from "@/lib/current-airtable-user";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+type AirtableFieldValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | null
+  | undefined;
+
+type JobItem = {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+  applicationsCount: number;
+  href: string;
+};
+
+function normalizeString(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function normalizeLower(value: unknown): string {
+  return normalizeString(value).toLowerCase();
+}
+
+function getFirstString(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+
+  if (Array.isArray(value)) {
+    const firstString = value.find((item) => typeof item === "string");
+    return typeof firstString === "string" ? firstString.trim() : "";
+  }
+
+  return "";
+}
+
+function getStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  return [];
+}
+
+function formatDate(value: unknown): string {
+  const raw = normalizeString(value);
+  if (!raw) return "";
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  return new Intl.DateTimeFormat("hu-HU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function getStatusLabel(status: string): string {
+  const normalized = status.toLowerCase();
+
+  switch (normalized) {
+    case "active":
+      return "Aktív";
+    case "draft":
+      return "Piszkozat";
+    case "paused":
+      return "Szüneteltetve";
+    case "closed":
+      return "Lezárt";
+    default:
+      return status || "Ismeretlen";
+  }
+}
+
+function getStatusClasses(status: string): string {
+  const normalized = status.toLowerCase();
+
+  switch (normalized) {
+    case "active":
+      return "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30";
+    case "draft":
+      return "bg-slate-500/15 text-slate-300 ring-1 ring-slate-500/30";
+    case "paused":
+      return "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30";
+    case "closed":
+      return "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30";
+    default:
+      return "bg-slate-500/15 text-slate-300 ring-1 ring-slate-500/30";
+  }
+}
+
+function matchesCurrentUser(userField: unknown, currentEmail: string): boolean {
+  if (!currentEmail) return false;
+
+  if (typeof userField === "string") {
+    return normalizeLower(userField) === currentEmail;
+  }
+
+  if (Array.isArray(userField)) {
+    return userField.some((item) => normalizeLower(item) === currentEmail);
+  }
+
+  return false;
+}
+
 export default async function AdminJobsPage() {
-  let jobsList: any[] = [];
-  let fetchError = false;
+  const currentUser = await getCurrentAirtableUser();
+
+  const currentEmail =
+    normalizeLower(
+      typeof currentUser === "string"
+        ? currentUser
+        : currentUser && typeof currentUser === "object" && "email" in currentUser
+        ? (currentUser as { email?: string }).email
+        : ""
+    ) || "";
+
+  if (!currentEmail) {
+    redirect("/admin/login");
+  }
+
+  const token = process.env.AIRTABLE_TOKEN;
+  const baseId = process.env.AIRTABLE_BASE_ID;
+
+  if (!token || !baseId) {
+    return (
+      <main className="min-h-screen bg-[#020817] text-white p-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
+            <h1 className="text-2xl font-semibold">Állások</h1>
+            <p className="mt-3 text-sm text-red-200">
+              Hiányzik az Airtable konfiguráció. Ellenőrizd a következő env
+              változókat:
+            </p>
+            <div className="mt-4 space-y-2 text-sm text-red-100">
+              <div>AIRTABLE_TOKEN</div>
+              <div>AIRTABLE_BASE_ID</div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  Airtable.configure({ apiKey: token });
+  const base = Airtable.base(baseId);
+
+  let jobs: JobItem[] = [];
+  let fetchError = "";
 
   try {
-    const token = process.env.AIRTABLE_TOKEN;
-    const baseId = process.env.AIRTABLE_BASE_ID;
-    const tableName = process.env.AIRTABLE_JOBS_TABLE_NAME;
+    const records = await base("Jobs")
+      .select({
+        sort: [{ field: "Created", direction: "desc" }],
+      })
+      .all();
 
-    if (!token || !baseId || !tableName) {
-      throw new Error("Hiányzó Airtable konfiguráció");
-    }
+    const filteredRecords = records.filter((record) =>
+      matchesCurrentUser(record.get("User"), currentEmail)
+    );
 
-    const base = new Airtable({ apiKey: token }).base(baseId);
-    
-    // Lekérdezzük az állásokat csökkenő sorrendben a készítés ideje szerint
-    const records = await base(tableName).select({
-       sort: [{ field: "Created", direction: "desc" }]
-    }).all().catch(async () => {
-       return await base(tableName).select().all();
+    jobs = filteredRecords.map((record) => {
+      const title =
+        getFirstString(record.get("Title")) ||
+        getFirstString(record.get("Job Title")) ||
+        "Névtelen állás";
+
+      const company =
+        getFirstString(record.get("Company")) ||
+        getFirstString(record.get("Company Name")) ||
+        "Nincs megadva";
+
+      const location =
+        getFirstString(record.get("Campaign Target Location")) ||
+        getFirstString(record.get("Location")) ||
+        "Nincs megadva";
+
+      const status = getFirstString(record.get("Status")) || "draft";
+
+      const applications = getStringArray(record.get("Applications"));
+
+      return {
+        id: record.id,
+        title,
+        company,
+        location,
+        status,
+        createdAt: formatDate(record.get("Created")),
+        updatedAt: formatDate(record.get("Updated time")),
+        applicationsCount: applications.length,
+        href: `/admin/jobs/${record.id}`,
+      };
     });
-
-    jobsList = records.map((record: any) => ({
-      id: record.id,
-      title: record.get("Title") || "Ismeretlen pozíció",
-      slug: record.get("Slug") || "n-a",
-      company: record.get("Company") || "Nincs cég",
-      location: record.get("Location") || "Nincs megadva",
-      status: record.get("Status") || "draft",
-    }));
-    
-  } catch (err: any) {
-    console.error("❌ Hiba az Airtable Állások letöltésekor:", err.message || err);
-    fetchError = true;
+  } catch (error) {
+    console.error("Hiba az admin állások betöltésekor:", error);
+    fetchError = "Nem sikerült betölteni az állásokat az Airtable-ből.";
   }
 
   return (
-    <>
-      <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight text-white mt-4">Állások</h1>
-          <p className="text-gray-400 mt-2 text-lg">Kezelje a meghirdetett pozíciókat az Airtable-ben.</p>
-        </div>
-        
-        <Link href="/admin/jobs/new" className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-5 py-2.5 rounded-xl flex items-center gap-2 transition-colors shrink-0 shadow-lg shadow-blue-500/20">
-           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-           Új állás meghirdetése
-        </Link>
-      </header>
-
-      {fetchError ? (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-red-500 mb-4 opacity-80"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-          <h2 className="text-xl font-semibold text-white mb-2">Adatelérési hiba</h2>
-          <p className="text-red-400/80 max-w-md mx-auto">Nem sikerült betölteni a munkalehetőségeket az Airtable rendszerből.</p>
-        </div>
-      ) : jobsList.length === 0 ? (
-        <div className="bg-gray-950/50 backdrop-blur-md border border-gray-800/60 rounded-2xl p-16 text-center flex flex-col items-center justify-center mt-8">
-          <div className="w-20 h-20 bg-gray-900 border border-gray-800 rounded-full flex items-center justify-center mb-6">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
+    <main className="min-h-screen bg-[#020817] text-white">
+      <div className="mx-auto max-w-6xl p-6 md:p-8">
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Állások</h1>
+            <p className="mt-2 text-sm text-slate-400">
+              A bejelentkezett felhasználóhoz tartozó álláshirdetések.
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Bejelentkezett email: {currentEmail}
+            </p>
           </div>
-          <h2 className="text-xl font-semibold text-white mb-2">Nincsenek aktív állások</h2>
-          <p className="text-gray-500 mb-6">Még nincs megjeleníthető hirdetés az Airtable tábládban.</p>
-          <Link href="/admin/jobs/new" className="bg-gray-800 hover:bg-gray-700 text-white font-medium px-5 py-2.5 rounded-xl transition-colors">
-            Első állás létrehozása
+
+          <Link
+            href="/admin/jobs/new"
+            className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
+          >
+            + Új állás meghirdetése
           </Link>
         </div>
-      ) : (
-        <div className="bg-gray-950/50 backdrop-blur-md border border-gray-800/60 rounded-2xl overflow-hidden relative">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-800/80 bg-gray-900/30 text-gray-400 text-sm font-medium">
-                  <th className="px-6 py-4 font-medium uppercase tracking-wider">Pozíció neve</th>
-                  <th className="px-6 py-4 font-medium uppercase tracking-wider">Cég</th>
-                  <th className="px-6 py-4 font-medium uppercase tracking-wider">Helyszín</th>
-                  <th className="px-6 py-4 font-medium uppercase tracking-wider">Státusz</th>
-                  <th className="px-6 py-4 font-medium uppercase tracking-wider text-right">Műveletek</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/50">
-                {jobsList.map((job) => (
-                  <tr key={job.id} className="hover:bg-gray-800/20 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-gray-100">{job.title}</div>
-                      <div className="text-xs text-gray-500 mt-1 font-mono">{job.slug}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-gray-300 font-medium flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                        {job.company}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-gray-300 flex items-center gap-1.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                        {job.location}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
-                        job.status === "active" || job.status === "Aktív" || job.status === "aktiv"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                          : job.status === "closed" || job.status === "Lezárt"
-                          ? "bg-red-500/10 text-red-400 border-red-500/20"
-                          : "bg-gray-800/50 text-gray-400 border-gray-700"
-                      }`}>
-                        {(job.status === "active" || job.status === "Aktív" || job.status === "aktiv") && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>}
-                        {job.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Link href={`/admin/jobs/${job.id}/edit`} className="text-gray-400 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                        Módosítás
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+        {fetchError ? (
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
+            <h2 className="text-lg font-semibold text-red-200">Hiba történt</h2>
+            <p className="mt-2 text-sm text-red-100">{fetchError}</p>
           </div>
-        </div>
-      )}
-    </>
+        ) : jobs.length === 0 ? (
+          <div className="rounded-2xl border border-slate-800 bg-[#06101f] px-6 py-14 text-center">
+            <div className="mx-auto max-w-md">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-slate-800/80 text-2xl">
+                📄
+              </div>
+              <h2 className="text-2xl font-semibold">Nincsenek állások</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-400">
+                Ehhez az email címhez jelenleg nincs hozzárendelt álláshirdetés.
+              </p>
+              <p className="mt-2 text-xs text-slate-500">{currentEmail}</p>
+
+              <div className="mt-6">
+                <Link
+                  href="/admin/jobs/new"
+                  className="inline-flex items-center justify-center rounded-xl bg-slate-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-600"
+                >
+                  Első állás létrehozása
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#06101f]">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-800">
+                <thead className="bg-slate-900/40">
+                  <tr>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Pozíció
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Cég
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Helyszín
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Státusz
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Jelentkezések
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Létrehozva
+                    </th>
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Frissítve
+                    </th>
+                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Művelet
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-800">
+                  {jobs.map((job) => (
+                    <tr key={job.id} className="hover:bg-slate-900/30">
+                      <td className="px-5 py-4">
+                        <div className="font-medium text-white">{job.title}</div>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-300">
+                        {job.company}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-300">
+                        {job.location}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(
+                            job.status
+                          )}`}
+                        >
+                          {getStatusLabel(job.status)}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-300">
+                        {job.applicationsCount}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-400">
+                        {job.createdAt || "-"}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-400">
+                        {job.updatedAt || "-"}
+                      </td>
+
+                      <td className="px-5 py-4 text-right">
+                        <Link
+                          href={job.href}
+                          className="inline-flex rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+                        >
+                          Megnyitás
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
