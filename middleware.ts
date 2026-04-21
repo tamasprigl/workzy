@@ -23,6 +23,7 @@ export async function middleware(request: NextRequest) {
       await jwtVerify(token, key, {
         algorithms: ['HS256'],
       });
+      
       return NextResponse.next();
     } catch (error) {
       const response = NextResponse.redirect(new URL('/admin/login', request.url));
