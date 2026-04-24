@@ -125,11 +125,13 @@ export default async function AdminDashboardPage() {
     console.log("filterByFormula:", filterFormula);
 
     if (employerEmail) {
-      rawJobs = await base(process.env.AIRTABLE_JOBS_TABLE_NAME!)
+      const selectedJobs = await base(process.env.AIRTABLE_JOBS_TABLE_NAME!)
         .select({
           filterByFormula: filterFormula,
         })
         .all();
+      
+      rawJobs = Array.from(selectedJobs);
     }
 
     console.log("number of jobs returned:", rawJobs.length);
@@ -140,9 +142,10 @@ export default async function AdminDashboardPage() {
 
     let applications: any[] = [];
     if (jobIds.length > 0) {
-      applications = await base(process.env.AIRTABLE_APPLICATIONS_TABLE_NAME!)
+      const selectedApps = await base(process.env.AIRTABLE_APPLICATIONS_TABLE_NAME!)
         .select()
         .all();
+      applications = Array.from(selectedApps);
     }
 
     const applicationsByJob = jobIds.reduce((acc, jobId) => {
@@ -204,7 +207,7 @@ export default async function AdminDashboardPage() {
   };
 
   const rawRecommendations: AiRecommendation[] = [];
-  let urgentJob = null;
+  let urgentJob: any = null;
 
   jobs.forEach(job => {
     const isActive = isActiveStatus(job.status || "");

@@ -41,7 +41,7 @@ export default function JobRow({ job, employers, companies }: any) {
     paymentStatus === "Manual" ||
     campaignStatus === "Active";
 
-  const update = async (field: string, value: string | boolean) => {
+  const update = async (field: string, value: string | boolean | number) => {
     try {
       await fetch("/api/admin/update-job", {
         method: "POST",
