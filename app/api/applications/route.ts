@@ -10,12 +10,24 @@ function escapeAirtableValue(value: string) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { jobSlug, jobTitle, fullName, email, phone, message } = body;
+    console.log("APPLICATION POST BODY:", body);
+
+    const { jobId, jobSlug, jobTitle, fullName, email, phone, message } = body;
 
     if (!jobSlug || !jobTitle || !fullName || !email) {
+      console.log("Missing required field:", { name: fullName, email, phone, jobId, jobSlug, jobTitle });
+
+      const missing = [];
+      if (!jobSlug) missing.push("jobSlug");
+      if (!jobTitle) missing.push("jobTitle");
+      if (!fullName) missing.push("fullName");
+      if (!email) missing.push("email");
+
       return NextResponse.json(
         {
           success: false,
+          error: "Missing required fields",
+          missing,
           message: "A kötelező mezők hiányoznak.",
         },
         { status: 400 }
@@ -49,18 +61,24 @@ export async function POST(request: Request) {
     const visibleCount = visibleApplications.length;
     const access = visibleCount < FREE_VISIBLE_LIMIT ? "Visible" : "Locked";
 
+    const recordFields: any = {
+      "Job Slug": jobSlug,
+      "Job Title": jobTitle,
+      "Full Name": fullName,
+      Email: email,
+      Phone: phone || "",
+      Message: message || "",
+      Status: "Új",
+      Access: access,
+    };
+
+    if (jobId) {
+      recordFields["Job"] = [jobId];
+    }
+
     const records = await base(tableName).create([
       {
-        fields: {
-          "Job Slug": jobSlug,
-          "Job Title": jobTitle,
-          "Full Name": fullName,
-          Email: email,
-          Phone: phone || "",
-          Message: message || "",
-          Status: "Új",
-          Access: access,
-        },
+        fields: recordFields,
       },
     ]);
 

@@ -13,6 +13,11 @@ if (!airtableBaseId) {
   throw new Error("Missing AIRTABLE_BASE_ID environment variable.");
 }
 
+console.log("TABLES:", {
+  jobs: process.env.AIRTABLE_JOBS_TABLE_NAME,
+  users: process.env.AIRTABLE_USERS_TABLE_NAME,
+});
+
 const base = new Airtable({
   apiKey: airtableToken,
 }).base(airtableBaseId);
@@ -28,6 +33,12 @@ export type Job = {
   description: string;
   status: string;
   generatedImageUrl: string | null;
+  campaignStatus: string;
+  paymentStatus: string;
+  manualUnlock: boolean;
+  freeCampaign: boolean;
+  campaignStopReason: string | null;
+  adSpend: number;
 };
 
 function getText(value: unknown): string {
@@ -121,6 +132,19 @@ export function mapJobRecord(record: Airtable.Record<any>): Job {
     record.get("Generated Image")
   );
 
+  const campaignStatus = getFirstNonEmpty(
+    record.get("Campaign Status")
+  ) || "Draft";
+
+  const paymentStatus = getFirstNonEmpty(
+    record.get("Payment Status")
+  ) || "Unpaid";
+
+  const manualUnlock = Boolean(record.get("Manual Unlock"));
+  const freeCampaign = Boolean(record.get("Free Campaign"));
+  const campaignStopReason = getFirstNonEmpty(record.get("Campaign Stop Reason"));
+  const adSpend = Number(record.get("Ad Spend") || 0);
+
   return {
     id: record.id,
     slug,
@@ -132,6 +156,12 @@ export function mapJobRecord(record: Airtable.Record<any>): Job {
     description,
     status,
     generatedImageUrl,
+    campaignStatus,
+    paymentStatus,
+    manualUnlock,
+    freeCampaign,
+    campaignStopReason,
+    adSpend,
   };
 }
 

@@ -446,7 +446,7 @@ export default async function PublicJobPage({ params }: PageProps) {
               </p>
             </div>
 
-            <ApplicationForm jobId={jobId} />
+            <ApplicationForm jobId={jobId} jobSlug={slug} jobTitle={jobTitle} />
           </div>
         </div>
       </section>

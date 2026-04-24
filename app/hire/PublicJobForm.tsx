@@ -44,9 +44,8 @@ function FieldError({ message }: { message?: string }) {
 function Chevron({ open }: { open: boolean }) {
   return (
     <div
-      className={`flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition-transform duration-300 ${
-        open ? "rotate-180" : ""
-      }`}
+      className={`flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition-transform duration-300 ${open ? "rotate-180" : ""
+        }`}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -283,16 +282,16 @@ export default function PublicJobForm() {
         shortDescription: formData.shortDescription.trim(),
         campaign: showCampaign
           ? {
-              platform: formData.platform,
-              budget: formData.budget ? Number(formData.budget) : undefined,
-              location: formData.campaignLocation.trim(),
-              goal: formData.objective.trim(),
-            }
+            platform: formData.platform,
+            budget: formData.budget ? Number(formData.budget) : undefined,
+            location: formData.campaignLocation.trim(),
+            goal: formData.objective.trim(),
+          }
           : undefined,
         highlights: showHighlights
           ? {
-              premiumListing: formData.highlights,
-            }
+            premiumListing: formData.highlights,
+          }
           : undefined,
       };
 
@@ -436,11 +435,10 @@ export default function PublicJobForm() {
                 onChange={handleChange}
                 onBlur={handleBlur}
                 placeholder="pl. Targoncavezető"
-                className={`w-full rounded-2xl border bg-white px-5 py-4 text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)] transition placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
-                  visibleError("title")
+                className={`w-full rounded-2xl border bg-white px-5 py-4 text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)] transition placeholder:text-slate-400 focus:outline-none focus:ring-2 ${visibleError("title")
                     ? "border-red-300 focus:border-red-400 focus:ring-red-100"
                     : "border-slate-200 focus:border-sky-400 focus:ring-sky-100"
-                }`}
+                  }`}
               />
               <FieldError message={visibleError("title")} />
             </div>
@@ -456,11 +454,10 @@ export default function PublicJobForm() {
                   onChange={handleChange}
                   onBlur={handleBlur}
                   placeholder="pl. Győr"
-                  className={`w-full rounded-2xl border bg-white px-5 py-4 text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)] transition placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
-                    visibleError("location")
+                  className={`w-full rounded-2xl border bg-white px-5 py-4 text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)] transition placeholder:text-slate-400 focus:outline-none focus:ring-2 ${visibleError("location")
                       ? "border-red-300 focus:border-red-400 focus:ring-red-100"
                       : "border-slate-200 focus:border-sky-400 focus:ring-sky-100"
-                  }`}
+                    }`}
                 />
                 <FieldError message={visibleError("location")} />
               </div>
@@ -475,11 +472,10 @@ export default function PublicJobForm() {
                   onChange={handleChange}
                   onBlur={handleBlur}
                   placeholder="pl. Nettó 400.000 Ft"
-                  className={`w-full rounded-2xl border bg-white px-5 py-4 text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)] transition placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
-                    visibleError("salary")
+                  className={`w-full rounded-2xl border bg-white px-5 py-4 text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)] transition placeholder:text-slate-400 focus:outline-none focus:ring-2 ${visibleError("salary")
                       ? "border-red-300 focus:border-red-400 focus:ring-red-100"
                       : "border-slate-200 focus:border-sky-400 focus:ring-sky-100"
-                  }`}
+                    }`}
                 />
                 <FieldError message={visibleError("salary")} />
               </div>
@@ -512,11 +508,10 @@ export default function PublicJobForm() {
                 onChange={handleChange}
                 onBlur={handleBlur}
                 placeholder="ide küldjük a belépési linket"
-                className={`w-full rounded-2xl border bg-white px-5 py-4 text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)] transition placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
-                  visibleError("email")
+                className={`w-full rounded-2xl border bg-white px-5 py-4 text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)] transition placeholder:text-slate-400 focus:outline-none focus:ring-2 ${visibleError("email")
                     ? "border-red-300 focus:border-red-400 focus:ring-red-100"
                     : "border-slate-200 focus:border-sky-400 focus:ring-sky-100"
-                }`}
+                  }`}
               />
               {visibleError("email") ? (
                 <FieldError message={visibleError("email")} />

@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 
 type ApplicationFormProps = {
   jobId: string;
+  jobSlug: string;
+  jobTitle: string;
 };
 
 type FormState = {
@@ -20,7 +22,7 @@ const initialFormState: FormState = {
   message: "",
 };
 
-export default function ApplicationForm({ jobId }: ApplicationFormProps) {
+export default function ApplicationForm({ jobId, jobSlug, jobTitle }: ApplicationFormProps) {
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -51,6 +53,8 @@ export default function ApplicationForm({ jobId }: ApplicationFormProps) {
         },
         body: JSON.stringify({
           jobId,
+          jobSlug,
+          jobTitle,
           fullName: formData.fullName.trim(),
           email: formData.email.trim(),
           phone: formData.phone.trim(),

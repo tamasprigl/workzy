@@ -11,6 +11,7 @@ type JobItem = {
   location?: string;
   salary?: string;
   schedule?: string;
+  type?: "fizikai" | "szellemi" | "Fizikai" | "Szellemi";
   shortDescription?: string;
   benefits?: string[] | string;
   generatedImageUrl?: string | null;
@@ -19,6 +20,9 @@ type JobItem = {
 type JobsClientProps = {
   jobsList: JobItem[];
 };
+
+type JobTypeFilter = "Összes" | "Fizikai" | "Szellemi";
+type SortOption = "Legújabb" | "Bér szerint" | "A-Z";
 
 const FALLBACK_IMAGE = "/placeholder-job.png";
 
@@ -35,84 +39,269 @@ function normalizeBenefits(benefits: JobItem["benefits"]) {
   return [];
 }
 
+function getJobType(job: JobItem): "Fizikai" | "Szellemi" {
+  if (job.type === "Fizikai" || job.type === "fizikai") return "Fizikai";
+  if (job.type === "Szellemi" || job.type === "szellemi") return "Szellemi";
+
+  const text = [
+    job.title,
+    job.company,
+    job.location,
+    job.salary,
+    job.schedule,
+    job.shortDescription,
+    ...normalizeBenefits(job.benefits),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const intellectualKeywords = [
+    "mérnök",
+    "agronómus",
+    "irodai",
+    "adminisztrátor",
+    "asszisztens",
+    "manager",
+    "koordinátor",
+    "értékesítő",
+    "könyvelő",
+    "hr",
+    "marketing",
+    "informatikus",
+    "fejlesztő",
+    "projekt",
+  ];
+
+  return intellectualKeywords.some((keyword) => text.includes(keyword))
+    ? "Szellemi"
+    : "Fizikai";
+}
+
+function extractSalaryNumber(salary?: string) {
+  if (!salary) return 0;
+
+  const numbers = salary.match(/\d[\d.\s]*/g);
+  if (!numbers?.length) return 0;
+
+  return Math.max(
+    ...numbers.map((number) => Number(number.replace(/[.\s]/g, "")) || 0)
+  );
+}
+
 function SearchIcon() {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-slate-400"
-    >
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.3-4.3" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-slate-400">
+      <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
+      <path d="m21 21-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
 
-function PinIcon() {
+function ChevronIcon({ isOpen }: { isOpen?: boolean }) {
   return (
     <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="15"
-      height="15"
+      width="16"
+      height="16"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-sky-600"
+      className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
     >
-      <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
-      <circle cx="12" cy="10" r="3" />
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-function ClockIcon() {
+type SelectOption = {
+  value: string;
+  label: string;
+};
+
+function CustomSelect({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: string;
+  options: SelectOption[];
+  onChange: (value: string) => void;
+  label: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedOption = options.find((o) => o.value === value) || options[0];
+
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-sky-600"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
+    <div className={`relative ${isOpen ? "z-[999]" : "z-[100]"}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex h-14 w-full items-center justify-between rounded-2xl border border-slate-200/90 bg-white px-4 text-sm font-black text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.06)] outline-none transition hover:border-sky-200 focus:border-sky-300 focus:ring-4 focus:ring-sky-100"
+        aria-label={label}
+      >
+        <span className="truncate">{selectedOption.label}</span>
+        <ChevronIcon isOpen={isOpen} />
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute left-0 top-full z-[9999] mt-3 max-h-[260px] w-full overflow-y-auto rounded-2xl border border-sky-100/80 bg-white/95 shadow-[0_28px_80px_rgba(15,23,42,0.18)] ring-1 ring-sky-100/70 backdrop-blur-xl">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition hover:bg-sky-50/80 ${
+                  value === option.value
+                    ? "bg-sky-50 font-black text-sky-700"
+                    : "font-bold text-slate-700"
+                }`}
+              >
+                <span className="truncate">{option.label}</span>
+                {value === option.value && (
+                  <span className="text-sky-600">✓</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
-function SparkIcon() {
+function JobCard({ job, featured = false }: { job: JobItem; featured?: boolean }) {
+  const image = job.generatedImageUrl || FALLBACK_IMAGE;
+  const jobType = getJobType(job);
+  const benefits = normalizeBenefits(job.benefits).slice(0, 2);
+
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className="text-sky-500"
-    >
-      <path d="M12 2l1.7 4.8L18.5 8l-4 2.7L16 16l-4-2.6L8 16l1.5-5.3L5.5 8l4.8-1.2L12 2z" />
-    </svg>
+    <div className="group relative h-full">
+      <div className="absolute -inset-[1px] rounded-[30px] bg-gradient-to-r from-sky-400/45 via-cyan-300/35 to-blue-500/45 opacity-0 blur-xl transition-all duration-500 group-hover:opacity-100" />
+
+      <Link
+        href={`/jobs/${job.slug}`}
+        className="relative flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_30px_80px_rgba(14,165,233,0.16)]"
+      >
+        <div className="relative flex h-[200px] w-full items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 via-white to-sky-50 p-3">
+          <Image
+            src={image}
+            alt={job.title || "Állás"}
+            fill
+            className="object-contain p-3 transition duration-500 group-hover:scale-[1.035]"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+          />
+
+          <div className="absolute left-4 top-4 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-600 shadow-[0_8px_20px_rgba(15,23,42,0.10)] backdrop-blur">
+            Aktív
+          </div>
+
+          <div className="absolute right-4 top-4 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 shadow-[0_8px_20px_rgba(15,23,42,0.10)] backdrop-blur">
+            {jobType}
+          </div>
+
+          {featured && (
+            <div className="absolute bottom-4 left-4 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[0_12px_30px_rgba(14,165,233,0.28)]">
+              Kiemelt
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-1 flex-col p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="inline-flex min-w-0 items-center gap-2 rounded-full bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">
+              <span>📍</span>
+              <span className="truncate">{job.location || "Helyszín egyeztetés szerint"}</span>
+            </div>
+
+            {job.company && (
+              <div className="max-w-[120px] truncate text-xs font-semibold text-slate-400">
+                {job.company}
+              </div>
+            )}
+          </div>
+
+          <h2 className="line-clamp-2 text-[21px] font-black leading-tight tracking-[-0.035em] text-slate-900">
+            {job.title || "Nyitott pozíció"}
+          </h2>
+
+          {job.salary && (
+            <div className="mt-4 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 to-blue-50 px-4 py-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-600/80">
+                Bér
+              </div>
+              <div className="mt-1 truncate text-[19px] font-black text-sky-700">
+                {job.salary}
+              </div>
+            </div>
+          )}
+
+          {job.shortDescription && (
+            <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">
+              {job.shortDescription}
+            </p>
+          )}
+
+          {benefits.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {benefits.map((benefit) => (
+                <span
+                  key={benefit}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600"
+                >
+                  {benefit}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-auto pt-5">
+            <div className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition group-hover:bg-gradient-to-r group-hover:from-cyan-500 group-hover:to-blue-500">
+              Részletek megtekintése →
+            </div>
+          </div>
+        </div>
+      </Link>
+    </div>
+  );
+}
+
+function EmptyState({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="mx-auto max-w-2xl rounded-[32px] border border-slate-200 bg-white p-10 text-center shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-50 text-3xl">
+        🔎
+      </div>
+      <h2 className="mt-5 text-2xl font-black text-slate-900">Nincs találat</h2>
+      <p className="mx-auto mt-2 max-w-md text-slate-500">
+        Próbálj más kulcsszót, helyszínt vagy munkatípust megadni.
+      </p>
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-6 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+      >
+        Szűrők törlése
+      </button>
+    </div>
   );
 }
 
 export default function JobsClient({ jobsList }: JobsClientProps) {
   const [search, setSearch] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("Összes");
+  const [selectedJobType, setSelectedJobType] = useState<JobTypeFilter>("Összes");
+  const [sortBy, setSortBy] = useState<SortOption>("Legújabb");
 
   const locations = useMemo(() => {
     const uniqueLocations = Array.from(
@@ -129,9 +318,12 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
   const filteredJobs = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return jobsList.filter((job) => {
+    const filtered = jobsList.filter((job) => {
       const matchesLocation =
         selectedLocation === "Összes" || job.location === selectedLocation;
+
+      const jobType = getJobType(job);
+      const matchesType = selectedJobType === "Összes" || jobType === selectedJobType;
 
       const haystack = [
         job.title,
@@ -140,6 +332,7 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
         job.salary,
         job.schedule,
         job.shortDescription,
+        jobType,
         ...normalizeBenefits(job.benefits),
       ]
         .filter(Boolean)
@@ -148,355 +341,150 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
 
       const matchesSearch = !query || haystack.includes(query);
 
-      return matchesLocation && matchesSearch;
+      return matchesLocation && matchesType && matchesSearch;
     });
-  }, [jobsList, search, selectedLocation]);
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "A-Z") {
+        return (a.title || "").localeCompare(b.title || "", "hu");
+      }
+
+      if (sortBy === "Bér szerint") {
+        return extractSalaryNumber(b.salary) - extractSalaryNumber(a.salary);
+      }
+
+      return 0;
+    });
+  }, [jobsList, search, selectedLocation, selectedJobType, sortBy]);
+
+  const resetFilters = () => {
+    setSearch("");
+    setSelectedLocation("Összes");
+    setSelectedJobType("Összes");
+    setSortBy("Legújabb");
+  };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-white text-slate-900">
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.10),transparent_28%)]" />
-        <div className="absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-sky-200/25 blur-3xl" />
+    <main className="min-h-screen bg-[#f4f7f9] text-slate-900">
+      <section className="relative overflow-visible z-20">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.18),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.14),transparent_30%)] pointer-events-none" />
+        <div className="absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 rounded-full bg-sky-200/35 blur-3xl pointer-events-none" />
 
-        <div className="relative mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8 lg:py-14">
+        <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10 z-40">
           <div className="mx-auto max-w-4xl text-center">
-            <div className="inline-flex items-center rounded-full bg-sky-100 px-4 py-1.5 text-sm font-medium text-sky-700">
+            <div className="inline-flex items-center rounded-full border border-sky-100 bg-white/86 px-4 py-2 text-sm font-bold text-sky-700 shadow-[0_10px_26px_rgba(15,23,42,0.08)] backdrop-blur">
               Aktív állások
             </div>
 
-            <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl lg:text-[56px] lg:leading-[1.02]">
+            <h1 className="mt-4 text-[36px] font-black tracking-[-0.05em] text-slate-900 sm:text-5xl lg:text-[58px] lg:leading-[1.02]">
               Találd meg a következő munkád
             </h1>
 
             <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-              Böngéssz az aktuális pozíciók között, szűrj helyszín szerint, és
-              jelentkezz gyorsan a számodra megfelelő állásra.
+              Szűrj helyszín, munkatípus és kulcsszó szerint, majd jelentkezz gyorsan.
             </p>
           </div>
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-[24px] border border-white/70 bg-white/80 p-5 text-center shadow-[0_20px_60px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-              <div className="text-sm font-medium text-slate-500">
-                Aktív pozíciók
-              </div>
-              <div className="mt-2 text-3xl font-black text-slate-900">
-                {jobsList.length}
-              </div>
-            </div>
+          <div className="relative mx-auto mb-10 mt-6 max-w-6xl z-50 overflow-visible lg:mb-16">
+            <div className="group relative">
+              <div className="absolute -inset-[3px] rounded-[38px] bg-gradient-to-r from-cyan-400/50 via-sky-300/40 to-blue-500/50 blur-[24px] transition-all duration-500 group-hover:opacity-100 opacity-60" />
+              <div className="absolute -inset-[1px] rounded-[36px] bg-gradient-to-r from-cyan-300/70 via-white/80 to-blue-400/70 transition-all duration-500 group-hover:opacity-100 opacity-80" />
 
-            <div className="rounded-[24px] border border-white/70 bg-white/80 p-5 text-center shadow-[0_20px_60px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-              <div className="text-sm font-medium text-slate-500">
-                Elérhető helyszínek
-              </div>
-              <div className="mt-2 text-3xl font-black text-slate-900">
-                {locations.length - 1}
-              </div>
-            </div>
+              <div className="relative rounded-[34px] border border-white/95 bg-white/95 p-4 shadow-[0_34px_100px_rgba(14,165,233,0.22)] backdrop-blur-2xl sm:p-5">
+                <div className="grid gap-3 lg:grid-cols-[1fr_210px_210px_170px_115px]">
+                  <div className="relative">
+                    <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+                      <SearchIcon />
+                    </div>
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Keresés pozíció, cég vagy bér alapján..."
+                      className="h-14 w-full rounded-2xl border border-slate-200/90 bg-white pl-12 pr-4 text-sm font-semibold text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.06)] outline-none transition placeholder:text-slate-400 hover:border-sky-200 focus:border-sky-300 focus:ring-4 focus:ring-sky-100"
+                    />
+                  </div>
 
-            <div className="rounded-[24px] border border-white/70 bg-white/80 p-5 text-center shadow-[0_20px_60px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-              <div className="text-sm font-medium text-slate-500">
-                Jelentkezés ideje
-              </div>
-              <div className="mt-2 text-3xl font-black text-slate-900">
-                1 perc
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 rounded-[32px] border border-white/70 bg-white/85 p-5 shadow-[0_20px_70px_rgba(15,23,42,0.06)] backdrop-blur-xl sm:p-6 lg:p-8">
-            <div className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-              <div>
-                <label
-                  htmlFor="job-search"
-                  className="mb-2 block text-sm font-medium text-slate-600"
-                >
-                  Keresés pozíció, helyszín vagy kulcsszó alapján
-                </label>
-
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition focus-within:border-sky-300 focus-within:ring-2 focus-within:ring-sky-100">
-                  <SearchIcon />
-                  <input
-                    id="job-search"
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Például: raktáros, gépkezelő, Győr..."
-                    className="w-full bg-transparent text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                  <CustomSelect
+                    label="Munkatípus"
+                    value={selectedJobType}
+                    onChange={(value) => setSelectedJobType(value as JobTypeFilter)}
+                    options={[
+                      { value: "Összes", label: "Fizikai / szellemi" },
+                      { value: "Fizikai", label: "Fizikai munka" },
+                      { value: "Szellemi", label: "Szellemi munka" },
+                    ]}
                   />
+
+                  <CustomSelect
+                    label="Helyszín"
+                    value={selectedLocation}
+                    onChange={setSelectedLocation}
+                    options={locations.map((loc) => ({ value: loc, label: loc }))}
+                  />
+
+                  <CustomSelect
+                    label="Rendezés"
+                    value={sortBy}
+                    onChange={(value) => setSortBy(value as SortOption)}
+                    options={[
+                      { value: "Legújabb", label: "Legújabb" },
+                      { value: "Bér szerint", label: "Bér szerint" },
+                      { value: "A-Z", label: "A-Z" },
+                    ]}
+                  />
+
+                  <div className="flex h-14 items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
+                    {filteredJobs.length} állás
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label
-                  htmlFor="location-filter"
-                  className="mb-2 block text-sm font-medium text-slate-600"
-                >
-                  Szűrés helyszín szerint
-                </label>
-
-                <select
-                  id="location-filter"
-                  value={selectedLocation}
-                  onChange={(e) => setSelectedLocation(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100"
-                >
-                  {locations.map((location) => (
-                    <option key={location} value={location}>
-                      {location}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              {locations.slice(0, 7).map((location) => (
-                <button
-                  key={location}
-                  type="button"
-                  onClick={() => setSelectedLocation(location)}
-                  className={[
-                    "rounded-full px-4 py-2 text-sm font-medium transition",
-                    selectedLocation === location
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-sky-100 hover:text-sky-700",
-                  ].join(" ")}
-                >
-                  {location}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-                Elérhető pozíciók
-              </h2>
-              <p className="mt-1 text-slate-600">
-                {filteredJobs.length} találat a jelenlegi szűrés alapján
-              </p>
-            </div>
-
-            {(search || selectedLocation !== "Összes") && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setSelectedLocation("Összes");
-                }}
-                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-              >
-                Szűrés törlése
-              </button>
-            )}
-          </div>
-
-          {filteredJobs.length > 0 ? (
-            <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {filteredJobs.map((job) => {
-                const benefits = normalizeBenefits(job.benefits).slice(0, 3);
-
-                return (
-                  <article
-                    key={job.slug}
-                    className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white/90 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_24px_70px_rgba(14,165,233,0.10)]"
-                  >
-                    <div className="relative h-52 w-full bg-slate-100">
-                      <Image
-                        src={job.generatedImageUrl || FALLBACK_IMAGE}
-                        alt={job.title || "Álláskép"}
-                        fill
-                        className="object-cover transition duration-500 group-hover:scale-105"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
+                {(search ||
+                  selectedLocation !== "Összes" ||
+                  selectedJobType !== "Összes" ||
+                  sortBy !== "Legújabb") && (
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="text-sm font-medium text-slate-500">
+                      Aktív szűrés:{" "}
+                      <span className="font-bold text-slate-800">
+                        {filteredJobs.length} találat
+                      </span>
                     </div>
-
-                    <div className="flex h-full flex-col p-6">
-                      <div className="mb-4 flex items-center justify-between gap-3">
-                        <div className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">
-                          Aktív
-                        </div>
-
-                        {job.company && (
-                          <div className="text-xs font-medium text-slate-400">
-                            {job.company}
-                          </div>
-                        )}
-                      </div>
-
-                      <h3 className="text-2xl font-bold leading-tight text-slate-900">
-                        {job.title || "Pozíció"}
-                      </h3>
-
-                      <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/90 p-4">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-600">
-                          Bér
-                        </div>
-                        <div className="mt-1 text-2xl font-black leading-tight text-sky-700">
-                          {job.salary || "Versenyképes"}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {job.location && (
-                          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600">
-                            <PinIcon />
-                            {job.location}
-                          </span>
-                        )}
-
-                        {job.schedule && (
-                          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600">
-                            <ClockIcon />
-                            {job.schedule}
-                          </span>
-                        )}
-                      </div>
-
-                      {job.shortDescription && (
-                        <p className="mt-4 text-sm leading-6 text-slate-600">
-                          {job.shortDescription}
-                        </p>
-                      )}
-
-                      {benefits.length > 0 && (
-                        <div className="mt-5">
-                          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                            Főbb előnyök
-                          </div>
-
-                          <ul className="space-y-2">
-                            {benefits.map((benefit, index) => (
-                              <li
-                                key={`${job.slug}-${index}`}
-                                className="flex items-start gap-2 text-sm text-slate-600"
-                              >
-                                <SparkIcon />
-                                <span>{benefit}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      <div className="mt-auto pt-6">
-                        <Link
-                          href={`/jobs/${job.slug}`}
-                          className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-600"
-                        >
-                          Megnézem
-                        </Link>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="mt-6 rounded-[28px] border border-slate-200 bg-white/90 p-10 text-center shadow-[0_20px_60px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-sky-600">
-                <SearchIcon />
-              </div>
-
-              <h3 className="mt-5 text-2xl font-bold text-slate-900">
-                Nincs találat
-              </h3>
-
-              <p className="mx-auto mt-3 max-w-xl text-slate-600">
-                A megadott keresésre vagy szűrésre most nem találtunk állást.
-                Próbálj meg másik kulcsszót, vagy válaszd az összes helyszínt.
-              </p>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setSelectedLocation("Összes");
-                }}
-                className="mt-6 inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-600"
-              >
-                Összes állás megjelenítése
-              </button>
-            </div>
-          )}
-
-          <div className="mt-12 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="rounded-[32px] border border-white/70 bg-white/85 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] backdrop-blur-xl md:p-8">
-              <div className="inline-flex items-center rounded-full bg-sky-100 px-4 py-1.5 text-sm font-medium text-sky-700">
-                Hogyan működik?
-              </div>
-
-              <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-900">
-                Egyszerű és gyors jelentkezési folyamat
-              </h2>
-
-              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-                A Workzy-val az álláskereső gyorsan átlátja a pozíciókat,
-                egyszerűen jelentkezik, a rendszer pedig azonnal továbbítja az
-                adatokat.
-              </p>
-
-              <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-sky-700">01</div>
-                  <div className="mt-2 font-bold text-slate-900">
-                    Válassz állást
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="rounded-full bg-white px-4 py-2 text-xs font-bold text-slate-600 shadow-sm transition hover:text-slate-900"
+                    >
+                      Szűrők törlése
+                    </button>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Nézd át az aktuális pozíciókat és nyisd meg a részleteket.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-sky-700">02</div>
-                  <div className="mt-2 font-bold text-slate-900">
-                    Küldd el az adataid
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Töltsd ki az űrlapot néhány mezővel, gyorsan és egyszerűen.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-sky-700">03</div>
-                  <div className="mt-2 font-bold text-slate-900">
-                    Azonnali továbbítás
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    A jelentkezés rögtön bekerül a rendszerbe és látszik az adminban.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[32px] bg-[linear-gradient(135deg,#0f172a,#111827)] p-6 text-white shadow-[0_24px_80px_rgba(15,23,42,0.14)] md:p-8">
-              <div className="inline-flex items-center rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-sky-200">
-                Workzy
-              </div>
-
-              <h2 className="mt-4 text-3xl font-black tracking-tight">
-                Nem találtad meg elsőre a megfelelőt?
-              </h2>
-
-              <p className="mt-4 text-base leading-7 text-slate-300">
-                Nézd végig az összes aktív pozíciót, vagy térj vissza később. A
-                Workzy oldalai gyors jelentkezésre és átlátható bemutatásra
-                készültek.
-              </p>
-
-              <div className="mt-8">
-                <Link
-                  href="/"
-                  className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-sky-200"
-                >
-                  Vissza a főoldalra
-                </Link>
+                )}
               </div>
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-12 sm:px-6 lg:px-8">
+        {filteredJobs.length > 0 ? (
+          <div>
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-xl font-black tracking-[-0.03em] text-slate-900">
+                Elérhető pozíciók
+              </h2>
+              <div className="hidden text-sm font-medium text-slate-500 sm:block">
+                {filteredJobs.length} találat
+              </div>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {filteredJobs.map((job, index) => (
+                <JobCard key={job.slug} job={job} featured={index === 0} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <EmptyState onReset={resetFilters} />
+        )}
       </section>
     </main>
   );

@@ -12,7 +12,7 @@ export async function loginAction(formData: FormData) {
     username === process.env.ADMIN_USERNAME &&
     password === process.env.ADMIN_PASSWORD
   ) {
-    const token = await createAuthToken({ username });
+    const token = await createAuthToken({ username, email: username });
     
     const cookieStore = await cookies();
     cookieStore.set('admin_session', token, {
