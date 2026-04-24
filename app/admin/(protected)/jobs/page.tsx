@@ -81,12 +81,17 @@ function getStatusLabel(status: string): string {
 
   switch (normalized) {
     case "active":
+    case "aktív":
+    case "aktiv":
       return "Aktív";
     case "draft":
+    case "piszkozat":
       return "Piszkozat";
     case "paused":
+    case "szüneteltetve":
       return "Szüneteltetve";
     case "closed":
+    case "lezárt":
       return "Lezárt";
     default:
       return status || "Ismeretlen";
@@ -98,15 +103,20 @@ function getStatusClasses(status: string): string {
 
   switch (normalized) {
     case "active":
-      return "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30";
+    case "aktív":
+    case "aktiv":
+      return "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20";
     case "draft":
-      return "bg-slate-500/15 text-slate-300 ring-1 ring-slate-500/30";
+    case "piszkozat":
+      return "bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-500/20";
     case "paused":
-      return "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30";
+    case "szüneteltetve":
+      return "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20";
     case "closed":
-      return "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30";
+    case "lezárt":
+      return "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20";
     default:
-      return "bg-slate-500/15 text-slate-300 ring-1 ring-slate-500/30";
+      return "bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-500/20";
   }
 }
 
@@ -145,15 +155,15 @@ export default async function AdminJobsPage() {
 
   if (!token || !baseId) {
     return (
-      <main className="min-h-screen bg-[#020817] text-white p-8">
+      <main className="min-h-screen bg-slate-50 text-slate-900 p-8">
         <div className="mx-auto max-w-6xl">
-          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
-            <h1 className="text-2xl font-semibold">Állások</h1>
-            <p className="mt-3 text-sm text-red-200">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+            <h1 className="text-xl font-semibold text-rose-900">Állások</h1>
+            <p className="mt-2 text-sm text-rose-700">
               Hiányzik az Airtable konfiguráció. Ellenőrizd a következő env
               változókat:
             </p>
-            <div className="mt-4 space-y-2 text-sm text-red-100">
+            <div className="mt-4 space-y-2 text-sm font-mono text-rose-800 bg-rose-100/50 p-3 rounded-lg inline-block">
               <div>AIRTABLE_TOKEN</div>
               <div>AIRTABLE_BASE_ID</div>
             </div>
@@ -218,137 +228,118 @@ export default async function AdminJobsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#020817] text-white">
-      <div className="mx-auto max-w-6xl p-6 md:p-8">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <main className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      <div className="mx-auto max-w-7xl p-6 md:p-8">
+        <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Állások</h1>
-            <p className="mt-2 text-sm text-slate-400">
-              A bejelentkezett felhasználóhoz tartozó álláshirdetések.
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Állások</h1>
+            <p className="mt-2 text-sm text-slate-500 font-medium">
+              Kezeld a toborzási kampányaidat
             </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Bejelentkezett email: {currentEmail}
+            <p className="mt-1 text-xs text-slate-400">
+             {currentEmail}
             </p>
           </div>
 
           <Link
             href="/admin/jobs/new"
-            className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
+            className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-blue-700 hover:shadow-md hover:-translate-y-0.5"
           >
             + Új állás meghirdetése
           </Link>
         </div>
 
         {fetchError ? (
-          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
-            <h2 className="text-lg font-semibold text-red-200">Hiba történt</h2>
-            <p className="mt-2 text-sm text-red-100">{fetchError}</p>
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-rose-900">Hiba történt</h2>
+            <p className="mt-2 text-sm text-rose-700">{fetchError}</p>
           </div>
         ) : jobs.length === 0 ? (
-          <div className="rounded-2xl border border-slate-800 bg-[#06101f] px-6 py-14 text-center">
-            <div className="mx-auto max-w-md">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-slate-800/80 text-2xl">
-                📄
+          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">
+            <div className="mx-auto max-w-md flex flex-col items-center">
+              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-50 border border-slate-100 text-slate-400 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               </div>
-              <h2 className="text-2xl font-semibold">Nincsenek állások</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-400">
-                Ehhez az email címhez jelenleg nincs hozzárendelt álláshirdetés.
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Még nincs állásod</h2>
+              <p className="mt-3 text-sm leading-relaxed text-slate-500 font-medium">
+                Indíts el egy kampányt 1 perc alatt, és találd meg a legjobb jelentkezőket könnyedén.
               </p>
-              <p className="mt-2 text-xs text-slate-500">{currentEmail}</p>
 
-              <div className="mt-6">
+              <div className="mt-8">
                 <Link
                   href="/admin/jobs/new"
-                  className="inline-flex items-center justify-center rounded-xl bg-slate-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-600"
+                  className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-blue-700 hover:shadow-md hover:-translate-y-0.5"
                 >
-                  Első állás létrehozása
+                  + Új állás létrehozása
                 </Link>
               </div>
             </div>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#06101f]">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-800">
-                <thead className="bg-slate-900/40">
-                  <tr>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Pozíció
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Cég
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Helyszín
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Státusz
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Jelentkezések
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Létrehozva
-                    </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Frissítve
-                    </th>
-                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Művelet
-                    </th>
-                  </tr>
-                </thead>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {jobs.map((job) => (
+              <div key={job.id} className="group relative flex flex-col bg-white rounded-3xl border border-slate-200 p-7 shadow-sm hover:shadow-xl hover:border-sky-300 transition-all duration-200 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer">
+                
+                <div className="flex justify-between items-start mb-6 gap-4 relative z-0">
+                  <h3 className="text-2xl font-semibold text-slate-900 leading-tight group-hover:text-sky-600 transition-colors pt-0.5">
+                    <Link href={job.href} className="focus:outline-none before:absolute before:-inset-7 before:z-0 before:rounded-3xl">
+                      {job.title}
+                    </Link>
+                  </h3>
+                  <div className="flex flex-col items-end gap-2 shrink-0 relative z-10 pointer-events-none">
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium transition-all duration-200 shadow-sm ${getStatusClasses(job.status)}`}>
+                      {getStatusLabel(job.status)}
+                    </span>
+                    {job.applicationsCount >= 5 && (
+                      <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-orange-50 text-orange-600 border border-orange-100 shadow-sm">
+                        🔥 pörög
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-                <tbody className="divide-y divide-slate-800">
-                  {jobs.map((job) => (
-                    <tr key={job.id} className="hover:bg-slate-900/30">
-                      <td className="px-5 py-4">
-                        <div className="font-medium text-white">{job.title}</div>
-                      </td>
+                <div className="flex flex-col gap-3 mb-10 relative z-10 pointer-events-none">
+                  <div className="flex items-center text-sm text-slate-500 gap-3">
+                    <svg className="w-4 h-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span className="truncate font-medium">{job.company}</span>
+                  </div>
+                  <div className="flex items-center text-sm text-slate-500 gap-3">
+                    <svg className="w-4 h-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span className="truncate font-medium">{job.location}</span>
+                  </div>
+                </div>
 
-                      <td className="px-5 py-4 text-sm text-slate-300">
-                        {job.company}
-                      </td>
+                <div className="flex flex-col mb-10 relative z-10 pointer-events-none">
+                  <span className="text-5xl font-bold text-sky-600 leading-none drop-shadow-sm">{job.applicationsCount}</span>
+                  <span className="text-xs uppercase tracking-widest text-slate-400 mt-1">{job.applicationsCount === 1 ? 'Jelentkező' : 'Jelentkezők'}</span>
+                </div>
 
-                      <td className="px-5 py-4 text-sm text-slate-300">
-                        {job.location}
-                      </td>
+                <div className="flex flex-col gap-1.5 text-[11px] text-slate-400 font-medium tracking-wide mb-8 relative z-10 pointer-events-none">
+                  {job.createdAt && <div>Létrehozva: <span className="text-slate-500">{job.createdAt}</span></div>}
+                  {job.updatedAt && job.updatedAt !== job.createdAt && <div>Utolsó frissítés: <span className="text-slate-500">{job.updatedAt}</span></div>}
+                </div>
 
-                      <td className="px-5 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClasses(
-                            job.status
-                          )}`}
-                        >
-                          {getStatusLabel(job.status)}
-                        </span>
-                      </td>
+                <div className="mt-auto pt-6 border-t border-slate-100 flex flex-col gap-3 relative z-10">
+                  <div className="flex gap-3">
+                    <Link href={`/admin/jobs/${job.id}/applications`} className="inline-flex items-center justify-center rounded-xl bg-blue-600 text-white px-4 py-2.5 text-[13px] font-bold transition duration-200 hover:bg-blue-700 shadow-sm active:scale-95 focus:outline-none flex-1">
+                       Jelentkezők kezelése
+                    </Link>
+                    <Link href={`/admin/jobs/${job.id}/edit`} className="inline-flex items-center justify-center rounded-xl bg-transparent text-slate-500 hover:text-slate-900 px-4 py-2.5 text-[13px] font-bold transition duration-200 hover:bg-slate-100 active:scale-95 focus:outline-none">
+                      Szerkesztés
+                    </Link>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Link href={`/admin/jobs/${job.id}/campaign`} className="inline-flex items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-sky-700 px-4 py-2 text-[13px] font-bold transition duration-200 hover:bg-sky-100 active:scale-95 focus:outline-none">
+                      Kampány indítás ✨
+                    </Link>
+                    <span className="text-sm font-medium text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none pr-1">
+                      Megnyitás →
+                    </span>
+                  </div>
+                </div>
 
-                      <td className="px-5 py-4 text-sm text-slate-300">
-                        {job.applicationsCount}
-                      </td>
-
-                      <td className="px-5 py-4 text-sm text-slate-400">
-                        {job.createdAt || "-"}
-                      </td>
-
-                      <td className="px-5 py-4 text-sm text-slate-400">
-                        {job.updatedAt || "-"}
-                      </td>
-
-                      <td className="px-5 py-4 text-right">
-                        <Link
-                          href={job.href}
-                          className="inline-flex rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
-                        >
-                          Megnyitás
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import Airtable from "airtable";
 const airtableToken = process.env.AIRTABLE_TOKEN;
 const airtableBaseId = process.env.AIRTABLE_BASE_ID;
 const jobsTableName = process.env.AIRTABLE_JOBS_TABLE_NAME || "Jobs";
+const applicationsTableName = process.env.AIRTABLE_APPLICATIONS_TABLE_NAME || "Applications";
 
 if (!airtableToken) {
   throw new Error("Missing AIRTABLE_TOKEN environment variable.");
@@ -56,7 +57,7 @@ function getAttachmentUrl(value: unknown): string | null {
   return null;
 }
 
-function isActiveStatus(status: string): boolean {
+export function isActiveStatus(status: string): boolean {
   const normalized = status.trim().toLowerCase();
 
   return (
@@ -188,4 +189,40 @@ export async function getJobBySlug(slug: string): Promise<Job | null> {
 
     throw error;
   }
+}
+
+export type JobWithApplications = Job & {
+  applicantsCount: number;
+};
+
+export async function getJobsWithApplications(): Promise<JobWithApplications[]> {
+  const jobs = await getAllJobs();
+
+  let appsRecords: readonly any[] = [];
+  try {
+    appsRecords = await base(applicationsTableName).select().all();
+  } catch (error: any) {
+    console.error("AIRTABLE getJobsWithApplications ERROR fetching apps:", {
+      message: error?.message,
+      statusCode: error?.statusCode,
+      error: error?.error,
+    });
+  }
+
+  const appsByJobId: Record<string, number> = {};
+  for (const record of appsRecords) {
+    const jobLinks = record.get("Job");
+    if (Array.isArray(jobLinks)) {
+      for (const jobId of jobLinks) {
+        if (typeof jobId === "string") {
+          appsByJobId[jobId] = (appsByJobId[jobId] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  return jobs.map((job) => ({
+    ...job,
+    applicantsCount: appsByJobId[job.id] || 0,
+  }));
 }

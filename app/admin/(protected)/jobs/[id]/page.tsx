@@ -93,6 +93,8 @@ function getStatusLabel(status: string): string {
 
   switch (normalized) {
     case "active":
+    case "aktív":
+    case "aktiv":
       return "Aktív";
     case "draft":
       return "Piszkozat";
@@ -110,16 +112,39 @@ function getStatusClasses(status: string): string {
 
   switch (normalized) {
     case "active":
-      return "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30";
+    case "aktív":
+    case "aktiv":
+      return "bg-emerald-50 text-emerald-600 ring-1 ring-inset ring-emerald-500/20";
     case "draft":
-      return "bg-slate-500/15 text-slate-300 ring-1 ring-slate-500/30";
+      return "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/20";
     case "paused":
-      return "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30";
+      return "bg-amber-50 text-amber-600 ring-1 ring-inset ring-amber-500/20";
     case "closed":
-      return "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30";
+      return "bg-rose-50 text-rose-600 ring-1 ring-inset ring-rose-500/20";
     default:
-      return "bg-slate-500/15 text-slate-300 ring-1 ring-slate-500/30";
+      return "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/20";
   }
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{children}</p>
+  );
+}
+
+function InfoCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/85 bg-white/82 p-5 shadow-[0_14px_36px_rgba(15,23,42,0.05)] backdrop-blur-md">
+      <SectionLabel>{label}</SectionLabel>
+      <p className="mt-3 text-base font-semibold text-slate-900">{value}</p>
+    </div>
+  );
 }
 
 export default async function AdminJobDetailPage({ params, searchParams }: PageProps) {
@@ -155,14 +180,23 @@ export default async function AdminJobDetailPage({ params, searchParams }: PageP
 
   if (!token || !baseId) {
     return (
-      <main className="min-h-screen bg-[#020817] text-white">
+      <main className="min-h-screen bg-[#f4f7f9] text-slate-900">
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute inset-0 bg-[#f4f7f9]" />
+          <div className="absolute left-[-120px] top-[-100px] h-[320px] w-[320px] rounded-full bg-cyan-200/34 blur-[110px]" />
+          <div className="absolute right-[-120px] top-[40px] h-[340px] w-[340px] rounded-full bg-sky-200/28 blur-[120px]" />
+          <div className="absolute bottom-[-140px] left-[35%] h-[320px] w-[320px] rounded-full bg-emerald-100/28 blur-[120px]" />
+        </div>
+
         <div className="mx-auto max-w-6xl p-6 md:p-8">
-          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
-            <h1 className="text-2xl font-semibold">Állás részletek</h1>
-            <p className="mt-3 text-sm text-red-100">
+          <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 shadow-[0_14px_36px_rgba(239,68,68,0.08)]">
+            <h1 className="text-2xl font-black tracking-[-0.03em] text-slate-900">
+              Állás részletek
+            </h1>
+            <p className="mt-3 text-sm text-red-700">
               Hiányzik az Airtable konfiguráció. Ellenőrizd az env változókat:
             </p>
-            <div className="mt-4 space-y-2 text-sm text-red-200">
+            <div className="mt-4 space-y-2 text-sm text-red-600">
               <div>AIRTABLE_TOKEN</div>
               <div>AIRTABLE_BASE_ID</div>
             </div>
@@ -220,12 +254,21 @@ export default async function AdminJobDetailPage({ params, searchParams }: PageP
   const updatedAt = formatDate(record.get("Updated time"));
 
   return (
-    <main className="min-h-screen bg-[#020817] text-white">
+    <main className="relative min-h-screen overflow-hidden bg-[#f4f7f9] text-slate-900">
+      <div className="absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[#f4f7f9]" />
+        <div className="absolute left-[-120px] top-[-100px] h-[320px] w-[320px] rounded-full bg-cyan-200/34 blur-[110px]" />
+        <div className="absolute right-[-120px] top-[40px] h-[340px] w-[340px] rounded-full bg-sky-200/28 blur-[120px]" />
+        <div className="absolute bottom-[-140px] left-[35%] h-[320px] w-[320px] rounded-full bg-emerald-100/28 blur-[120px]" />
+        <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(#0f172a_1px,transparent_1px)] [background-size:22px_22px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.18),rgba(255,255,255,0.70))]" />
+      </div>
+
       <div className="mx-auto max-w-7xl p-6 md:p-8">
         <div className="mb-8">
           <Link
             href="/admin/jobs"
-            className="inline-flex items-center rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-300 transition hover:border-slate-700 hover:bg-slate-800/70 hover:text-white"
+            className="inline-flex items-center rounded-2xl border border-white/90 bg-white/82 px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_10px_26px_rgba(15,23,42,0.05)] backdrop-blur-md transition hover:bg-white"
           >
             ← Vissza az állásokhoz
           </Link>
@@ -233,22 +276,18 @@ export default async function AdminJobDetailPage({ params, searchParams }: PageP
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-6">
-            <section className="rounded-2xl border border-slate-800 bg-[#06101f] p-6">
+            <section className="rounded-[30px] border border-white/85 bg-white/82 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.07)] backdrop-blur-md">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Állás részletek
-                  </p>
-                  <h1 className="mt-2 text-3xl font-bold tracking-tight">
+                  <SectionLabel>Állás részletek</SectionLabel>
+                  <h1 className="mt-2 text-[46px] font-black leading-[0.95] tracking-[-0.05em] text-slate-900">
                     {title}
                   </h1>
-                  <p className="mt-3 text-sm text-slate-400">
-                    Tulajdonos: saját fiók
-                  </p>
+                  <p className="mt-3 text-sm text-slate-500">Tulajdonos: saját fiók</p>
                 </div>
 
                 <span
-                  className={`inline-flex h-fit rounded-full px-3 py-1.5 text-xs font-semibold ${getStatusClasses(
+                  className={`inline-flex h-fit rounded-full px-3 py-1.5 text-sm font-semibold ${getStatusClasses(
                     status,
                   )}`}
                 >
@@ -258,112 +297,74 @@ export default async function AdminJobDetailPage({ params, searchParams }: PageP
             </section>
 
             <section className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-800 bg-[#06101f] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                  Cég
-                </p>
-                <p className="mt-3 text-base font-medium text-white">{company}</p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-[#06101f] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                  Helyszín
-                </p>
-                <p className="mt-3 text-base font-medium text-white">{location}</p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-[#06101f] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                  Kampány cél
-                </p>
-                <p className="mt-3 text-base font-medium text-white">
-                  {campaignGoal}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-[#06101f] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                  Jelentkezők állapota
-                </p>
-                <p className="mt-3 text-base font-medium text-white">
-                  {applicantsUnlocked ? "Feloldva" : "Zárolva"}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-[#06101f] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                  Létrehozva
-                </p>
-                <p className="mt-3 text-base font-medium text-white">{createdAt}</p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-[#06101f] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                  Frissítve
-                </p>
-                <p className="mt-3 text-base font-medium text-white">{updatedAt}</p>
-              </div>
+              <InfoCard label="Cég" value={company} />
+              <InfoCard label="Helyszín" value={location} />
+              <InfoCard label="Kampány cél" value={campaignGoal} />
+              <InfoCard
+                label="Jelentkezők állapota"
+                value={applicantsUnlocked ? "Feloldva" : "Zárolva"}
+              />
+              <InfoCard label="Létrehozva" value={createdAt} />
+              <InfoCard label="Frissítve" value={updatedAt} />
             </section>
 
-            <section className="rounded-2xl border border-slate-800 bg-[#06101f] p-6">
+            <section className="rounded-[30px] border border-white/85 bg-white/82 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.07)] backdrop-blur-md">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                    Facebook poszt szöveg
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold">Hirdetési szöveg</h2>
+                  <SectionLabel>Facebook poszt szöveg</SectionLabel>
+                  <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-900">
+                    Hirdetési szöveg
+                  </h2>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-                <p className="whitespace-pre-line text-sm leading-7 text-slate-300">
+              <div className="rounded-[24px] border border-slate-100 bg-slate-50/90 p-5">
+                <p className="whitespace-pre-line text-sm leading-7 text-slate-700">
                   {facebookPostText}
                 </p>
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-800 bg-[#06101f] p-6">
+            <section className="rounded-[30px] border border-white/85 bg-white/82 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.07)] backdrop-blur-md">
               <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                    Jelentkezők és paywall
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold">
+                  <SectionLabel>Jelentkezők és paywall</SectionLabel>
+                  <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-900">
                     Jelentkezések kezelése
                   </h2>
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-right">
+                <div className="rounded-[20px] border border-white/85 bg-white/84 px-4 py-3 text-right shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
                   <p className="text-xs text-slate-500">Jelenlegi jelentkezések</p>
-                  <p className="mt-1 text-2xl font-bold text-white">
+                  <p className="mt-1 text-2xl font-black tracking-[-0.03em] text-slate-900">
                     {applicationsCount}
                   </p>
                 </div>
               </div>
 
               {isLocked ? (
-                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-5">
-                  <h3 className="text-lg font-semibold text-rose-200">
+                <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-5">
+                  <h3 className="text-lg font-semibold text-rose-700">
                     Elérted az 5 jelentkezős limitet
                   </h3>
-                  <p className="mt-2 mb-5 text-sm leading-6 text-rose-100">
+                  <p className="mb-5 mt-2 text-sm leading-6 text-rose-600">
                     Ennél az állásnál már legalább 5 jelentkező beérkezett, ezért a
                     jelentkezők megtekintése jelenleg zárolva van. A további
                     hozzáférés fizetés után oldható fel.
                   </p>
                   <Link
                     href={`/admin/jobs/${id}/checkout`}
-                    className="inline-flex rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
+                    className="inline-flex rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_36px_rgba(14,165,233,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(14,165,233,0.32)]"
                   >
                     Tovább a fizetéshez
                   </Link>
                 </div>
               ) : (
-                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
-                  <h3 className="text-lg font-semibold text-emerald-200">
+                <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5">
+                  <h3 className="text-lg font-semibold text-emerald-700">
                     A jelentkezők elérhetők
                   </h3>
-                  <p className="mt-2 text-sm leading-6 text-emerald-100">
+                  <p className="mt-2 text-sm leading-6 text-emerald-600">
                     Ennél az állásnál a jelentkezők jelenleg megtekinthetők. A
                     zárolás csak akkor aktiválódik, ha legalább 5 jelentkező érkezik
                     be és az állás nincs feloldva.
@@ -374,24 +375,22 @@ export default async function AdminJobDetailPage({ params, searchParams }: PageP
           </div>
 
           <aside className="space-y-6">
-            <section className="rounded-2xl border border-slate-800 bg-[#06101f] p-6">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Gyors műveletek
-              </p>
+            <section className="rounded-[30px] border border-white/85 bg-white/82 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.07)] backdrop-blur-md">
+              <SectionLabel>Gyors műveletek</SectionLabel>
 
               <div className="mt-4 space-y-3">
                 {isLocked ? (
                   <div className="space-y-3">
                     <Link
                       href={`/admin/jobs/${id}/checkout`}
-                      className="block w-full text-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-500"
+                      className="block w-full rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 px-4 py-3 text-center text-sm font-semibold text-white shadow-[0_16px_36px_rgba(14,165,233,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(14,165,233,0.32)]"
                     >
                       Tovább a fizetéshez
                     </Link>
                     <button
                       type="button"
                       disabled
-                      className="w-full cursor-not-allowed rounded-xl bg-slate-800 px-4 py-3 text-sm font-medium text-slate-500"
+                      className="w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
                     >
                       Jelentkezők megtekintése
                     </button>
@@ -399,7 +398,7 @@ export default async function AdminJobDetailPage({ params, searchParams }: PageP
                 ) : (
                   <Link
                     href={`/admin/jobs/${id}/applications`}
-                    className="block w-full text-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-500"
+                    className="block w-full rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 px-4 py-3 text-center text-sm font-semibold text-white shadow-[0_16px_36px_rgba(14,165,233,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(14,165,233,0.32)]"
                   >
                     Jelentkezők megtekintése
                   </Link>
@@ -407,43 +406,41 @@ export default async function AdminJobDetailPage({ params, searchParams }: PageP
 
                 <Link
                   href="/admin/jobs"
-                  className="block w-full rounded-xl border border-slate-700 px-4 py-3 text-center text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+                  className="block w-full rounded-2xl border border-white/90 bg-white/86 px-4 py-3 text-center text-sm font-semibold text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:bg-white"
                 >
                   Állásokhoz vissza
                 </Link>
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-800 bg-[#06101f] p-6">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Állapot összegzés
-              </p>
+            <section className="rounded-[30px] border border-white/85 bg-white/82 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.07)] backdrop-blur-md">
+              <SectionLabel>Állapot összegzés</SectionLabel>
 
               <div className="mt-4 space-y-4">
-                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                <div className="rounded-[20px] border border-slate-100 bg-slate-50/90 p-4">
                   <p className="text-xs text-slate-500">Státusz</p>
-                  <p className="mt-1 text-sm font-medium text-white">
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
                     {getStatusLabel(status)}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                <div className="rounded-[20px] border border-slate-100 bg-slate-50/90 p-4">
                   <p className="text-xs text-slate-500">Jelentkezők száma</p>
-                  <p className="mt-1 text-sm font-medium text-white">
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
                     {applicationsCount} db
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                <div className="rounded-[20px] border border-slate-100 bg-slate-50/90 p-4">
                   <p className="text-xs text-slate-500">Feloldás</p>
-                  <p className="mt-1 text-sm font-medium text-white">
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
                     {applicantsUnlocked ? "Igen" : "Nem"}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                <div className="rounded-[20px] border border-slate-100 bg-slate-50/90 p-4">
                   <p className="text-xs text-slate-500">Paywall állapot</p>
-                  <p className="mt-1 text-sm font-medium text-white">
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
                     {isLocked ? "Aktív zárolás" : "Nincs zárolás"}
                   </p>
                 </div>

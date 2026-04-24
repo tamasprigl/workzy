@@ -24,8 +24,11 @@ export async function checkOnboardingStatus() {
   const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
 
   try {
+    const normalizedEmail = session.username.toLowerCase().trim();
+    const filterFormula = `LOWER({Email}) = '${normalizedEmail}'`;
+
     const employers = await base(employersTableName)
-      .select({ filterByFormula: `{Email} = '${session.username}'`, maxRecords: 1 })
+      .select({ filterByFormula: filterFormula, maxRecords: 1 })
       .firstPage();
 
     if (employers.length === 0) return { isComplete: false };
@@ -66,13 +69,29 @@ export async function submitOnboarding(formData: FormData) {
   const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
 
   try {
-    // 1. Find Employer by Email
-    const employers = await base(employersTableName)
-      .select({ filterByFormula: `{Email} = '${email}'`, maxRecords: 1 })
+    // 1. Find Employer by Email safely
+    const normalizedEmail = email.toLowerCase().trim();
+    const filterFormula = `LOWER({Email}) = '${normalizedEmail}'`;
+
+    let employers = await base(employersTableName)
+      .select({ filterByFormula: filterFormula, maxRecords: 1 })
       .firstPage();
 
     if (employers.length === 0) {
-      throw new Error("Employer not found");
+      console.error("Employer lookup failed. Creating automatically...");
+      console.error("Lookup input:", {
+        email,
+        normalizedEmail,
+        tableName: employersTableName,
+        filterFormula,
+      });
+      console.error("Employers found:", employers.length);
+
+      // Create the missing employer automatically
+      const created = await base(employersTableName).create([
+        { fields: { Email: normalizedEmail } as Airtable.FieldSet }
+      ]);
+      employers = created;
     }
 
     const employer = employers[0];
@@ -91,14 +110,26 @@ export async function submitOnboarding(formData: FormData) {
 
     if (companyIds && companyIds.length > 0) {
       companyId = companyIds[0];
-      await base(companiesTableName).update([
+      
+      console.log("Saving onboarding...");
+      console.log("Table:", companiesTableName);
+      console.log("Record ID:", companyId);
+      console.log("Fields:", companyFields);
+
+      const result = await base(companiesTableName).update([
         { id: companyId, fields: companyFields as Airtable.FieldSet }
       ]);
+      console.log("Airtable response:", result);
     } else {
+      console.log("Saving onboarding...");
+      console.log("Table:", companiesTableName);
+      console.log("Fields:", companyFields);
+
       const newCompany = await base(companiesTableName).create([
         { fields: companyFields as Airtable.FieldSet }
       ]);
       companyId = newCompany[0].id;
+      console.log("Airtable response:", newCompany);
 
       // Link Employer to new Company without overwriting email
       await base(employersTableName).update([
@@ -109,7 +140,7 @@ export async function submitOnboarding(formData: FormData) {
     // 3. Update pending jobs safely
     const pendingJobs = await base(jobsTableName)
       .select({
-        filterByFormula: `AND({Submitted Email} = '${email}', {Status} = 'Awaiting Profile')`
+        filterByFormula: `AND(LOWER({Submitted Email}) = '${normalizedEmail}', {Status} = 'Awaiting Profile')`
       })
       .all();
 
@@ -125,10 +156,17 @@ export async function submitOnboarding(formData: FormData) {
       }
     }
   } catch (error) {
-    console.error("Onboarding error:", error);
-    throw new Error("Failed to save profile");
+    console.error("Onboarding error full:", error);
+
+    if (error instanceof Error) {
+      console.error("Message:", error.message);
+      console.error("Stack:", error.stack);
+      throw error;
+    }
+
+    throw new Error(`Failed to save profile: ${String(error)}`);
   }
 
   // Redirect on success
-  redirect("/admin");
+  redirect("/admin/jobs/new");
 }
