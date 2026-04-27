@@ -1,114 +1,117 @@
+import { NextRequest, NextResponse } from "next/server";
 import Airtable from "airtable";
+import { createAuthToken } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const airtableToken = process.env.AIRTABLE_TOKEN;
 const airtableBaseId = process.env.AIRTABLE_BASE_ID;
-
 const magicLinksTableName =
   process.env.AIRTABLE_MAGIC_LINKS_TABLE_NAME || "MagicLinks";
 
-const employersTableName =
-  process.env.AIRTABLE_EMPLOYERS_TABLE_NAME || "Employers";
-
 if (!airtableToken || !airtableBaseId) {
-  throw new Error("Missing Airtable configuration");
+  throw new Error("Missing Airtable config");
 }
 
 const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
 
-/**
- * EMPLOYER létrehozása vagy visszaadása email alapján
- */
-export async function ensureEmployer(email: string) {
-  const normalizedEmail = email.toLowerCase().trim();
+function escapeAirtableFormulaValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
 
-  const existing = await base(employersTableName)
-    .select({
-      maxRecords: 1,
-      filterByFormula: `LOWER({Email}) = '${normalizedEmail.replace(/'/g, "\\'")}'`,
-    })
-    .firstPage();
+function getFieldString(fields: Record<string, any>, names: string[]): string {
+  for (const name of names) {
+    const value = fields[name];
 
-  if (existing.length > 0) {
-    return existing[0];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+
+    if (typeof value === "number") {
+      return String(value);
+    }
   }
 
-  const created = await base(employersTableName).create([
-    {
-      fields: {
-        Email: normalizedEmail,
-        "Email Verified": false,
-      },
-    },
-  ]);
-
-  return created[0];
+  return "";
 }
 
-/**
- * Magic link létrehozása
- */
-export async function createMagicLink({
-  token,
-  email,
-  jobId,
-  purpose = "job_activation",
-  expiresAt,
-}: {
-  token: string;
-  email: string;
-  jobId: string;
-  purpose?: string;
-  expiresAt: string;
-}) {
-  const records = await base(magicLinksTableName).create([
-    {
-      fields: {
-        Token: token,
-        Email: email.toLowerCase().trim(),
-        Purpose: purpose,
-        "Expires At": expiresAt,
+function isExpired(value: string): boolean {
+  if (!value) return false;
 
-        // ⚠️ FONTOS: ha linked field
-        Job: [jobId],
-      },
-    },
-  ]);
+  const date = new Date(value);
 
-  return records[0];
+  if (Number.isNaN(date.getTime())) return false;
+
+  return date.getTime() < Date.now();
 }
 
-/**
- * Magic link lekérése token alapján
- */
-export async function getMagicLinkByToken(token: string) {
-  const records = await base(magicLinksTableName)
-    .select({
-      maxRecords: 1,
-      filterByFormula: `{Token} = '${token}'`,
-    })
-    .firstPage();
+export async function GET(request: NextRequest) {
+  try {
+    const token = request.nextUrl.searchParams.get("token")?.trim();
 
-  return records[0] || null;
-}
+    if (!token) {
+      return NextResponse.redirect(new URL("/admin/login?error=missing-token", request.url));
+    }
 
-/**
- * Magic link lejárat ellenőrzés
- */
-export function isMagicLinkExpired(expiresAt?: string) {
-  if (!expiresAt) return true;
-  return new Date(expiresAt).getTime() < Date.now();
-}
+    const safeToken = escapeAirtableFormulaValue(token);
 
-/**
- * Magic link felhasználtnak jelölése
- */
-export async function markMagicLinkUsed(recordId: string) {
-  await base(magicLinksTableName).update([
-    {
-      id: recordId,
-      fields: {
-        "Used At": new Date().toISOString(),
-      },
-    },
-  ]);
+    const records = await base(magicLinksTableName)
+      .select({
+        maxRecords: 1,
+        filterByFormula: `{Token} = "${safeToken}"`,
+      })
+      .all();
+
+    const magicLinkRecord = records[0];
+
+    if (!magicLinkRecord) {
+      return NextResponse.redirect(new URL("/admin/login?error=invalid-token", request.url));
+    }
+
+    const fields = magicLinkRecord.fields as Record<string, any>;
+
+    const email = getFieldString(fields, ["Email", "email"]).toLowerCase();
+    const expiresAt = getFieldString(fields, [
+      "Expires At",
+      "ExpiresAt",
+      "expiresAt",
+      "Expiry",
+    ]);
+
+    if (!email) {
+      return NextResponse.redirect(new URL("/admin/login?error=missing-email", request.url));
+    }
+
+    if (isExpired(expiresAt)) {
+      return NextResponse.redirect(new URL("/admin/login?error=expired-token", request.url));
+    }
+
+    const authToken = await createAuthToken({
+      email,
+      username: email,
+      role: "employer",
+    });
+
+    await base(magicLinksTableName).update(magicLinkRecord.id, {
+      Used: true,
+      "Used At": new Date().toISOString(),
+    });
+
+    const response = NextResponse.redirect(new URL("/admin", request.url));
+
+    response.cookies.set("admin_session", authToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Magic link login error:", error);
+
+    return NextResponse.redirect(new URL("/admin/login?error=magic-link-failed", request.url));
+  }
 }
