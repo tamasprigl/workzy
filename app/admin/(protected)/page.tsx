@@ -1,27 +1,43 @@
 import Link from "next/link";
-import { isActiveStatus, mapJobRecord } from "@/lib/airtable";
-import AutoCampaignCard from "@/components/ai/AutoCampaignCard";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { verifyAuthToken, getCurrentUser, getEmployerAccess } from "@/lib/auth";
 import Airtable from "airtable";
+
+import { isActiveStatus, mapJobRecord } from "@/lib/airtable";
+import AutoCampaignCard from "@/components/ai/AutoCampaignCard";
+import { getCurrentUser, getEmployerAccess, verifyAuthToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+type AccessData = {
+  plan: string;
+  applicantLimit: number;
+  accessStatus: string;
+};
+
+type AirtableRecordLike = {
+  id: string;
+  fields?: Record<string, any>;
+};
+
+function escapeAirtableFormulaValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function getStatusLabel(status: string): string {
-  const normalized = status.toLowerCase();
+  const normalized = String(status || "").toLowerCase();
 
   if (["active", "aktív", "aktiv"].includes(normalized)) return "Aktív";
   if (["draft", "piszkozat"].includes(normalized)) return "Piszkozat";
   if (["paused", "szüneteltetve"].includes(normalized)) return "Szüneteltetve";
-  if (["closed", "lezárt"].includes(normalized)) return "Lezárt";
+  if (["closed", "lezárt", "lezart"].includes(normalized)) return "Lezárt";
 
   return status || "Ismeretlen";
 }
 
 function getStatusClasses(status: string): string {
-  const normalized = status.toLowerCase();
+  const normalized = String(status || "").toLowerCase();
 
   if (["active", "aktív", "aktiv"].includes(normalized)) {
     return "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20";
@@ -31,22 +47,18 @@ function getStatusClasses(status: string): string {
     return "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20";
   }
 
-  if (["closed", "lezárt"].includes(normalized)) {
+  if (["closed", "lezárt", "lezart"].includes(normalized)) {
     return "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20";
   }
 
   return "bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-500/20";
 }
 
-function getVisibleApplicantLimit(access: {
-  plan: string;
-  applicantLimit: number;
-  accessStatus: string;
-}) {
+function getVisibleApplicantLimit(access: AccessData): number {
   if (access.accessStatus === "Locked") return 5;
 
   if (access.plan === "Premium" || access.plan === "Partner") {
-    return Infinity;
+    return Number.POSITIVE_INFINITY;
   }
 
   if (Number.isFinite(access.applicantLimit) && access.applicantLimit > 0) {
@@ -56,22 +68,24 @@ function getVisibleApplicantLimit(access: {
   return 5;
 }
 
-function isNewApplication(app: any) {
+function isNewApplication(app: AirtableRecordLike): boolean {
   const status = String(
     app.fields?.Status ||
       app.fields?.status ||
       app.fields?.["Application Status"] ||
       ""
-  ).toLowerCase();
+  )
+    .trim()
+    .toLowerCase();
 
   return status === "új" || status === "uj" || status === "new" || status === "";
 }
 
-function getApplicationJobIds(app: any): string[] {
+function getApplicationJobIds(app: AirtableRecordLike): string[] {
   const value = app.fields?.Job;
 
   if (Array.isArray(value)) {
-    return value.filter((item) => typeof item === "string");
+    return value.filter((item): item is string => typeof item === "string");
   }
 
   if (typeof value === "string") {
@@ -102,6 +116,15 @@ function getThumbnail(job: any): string {
   return "";
 }
 
+function isJobUnlocked(job: any): boolean {
+  return (
+    job.manualUnlock === true ||
+    job.paymentStatus === "Paid" ||
+    job.paymentStatus === "Manual" ||
+    job.campaignStatus === "Active"
+  );
+}
+
 export default async function AdminDashboardPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get("admin_session")?.value;
@@ -115,7 +138,11 @@ export default async function AdminDashboardPage() {
   const user = await getCurrentUser(authUser.email);
   const employerId = user?.employerId;
 
-  let access = { plan: "Free", applicantLimit: 5, accessStatus: "Active" };
+  let access: AccessData = {
+    plan: "Free",
+    applicantLimit: 5,
+    accessStatus: "Active",
+  };
 
   if (employerId) {
     access = await getEmployerAccess(employerId);
@@ -154,51 +181,52 @@ export default async function AdminDashboardPage() {
   let errorMsg = "";
 
   try {
-    const base = new Airtable({
-      apiKey: process.env.AIRTABLE_TOKEN,
-    }).base(process.env.AIRTABLE_BASE_ID!);
+    const airtableToken = process.env.AIRTABLE_TOKEN;
+    const airtableBaseId = process.env.AIRTABLE_BASE_ID;
+
+    if (!airtableToken || !airtableBaseId) {
+      throw new Error("Hiányzó Airtable környezeti változó.");
+    }
+
+    const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
 
     const jobsTableName = process.env.AIRTABLE_JOBS_TABLE_NAME || "Jobs";
     const applicationsTableName =
       process.env.AIRTABLE_APPLICATIONS_TABLE_NAME || "Applications";
 
     const employerEmail = authUser.email.toLowerCase().trim();
+    const safeEmployerEmail = escapeAirtableFormulaValue(employerEmail);
 
-    const selectedJobs = await base(jobsTableName)
+    const selectedJobsRecords = await base(jobsTableName)
       .select({
         filterByFormula: `OR(
-          LOWER({Owner}) = "${employerEmail}",
-          LOWER({User}) = "${employerEmail}"
+          LOWER({Owner}) = "${safeEmployerEmail}",
+          LOWER({User}) = "${safeEmployerEmail}"
         )`,
       })
       .all();
 
-    const baseJobs = selectedJobs.map(mapJobRecord);
-    const jobIds = baseJobs.map((job) => job.id);
+    const baseJobs = Array.from(selectedJobsRecords).map(mapJobRecord);
+    const jobIds = baseJobs.map((job: any) => job.id).filter(Boolean);
 
-    let applications: any[] = [];
+    const applicationRecords =
+      jobIds.length > 0
+        ? Array.from(await base(applicationsTableName).select().all())
+        : [];
 
-    if (jobIds.length > 0) {
-      applications = await base(applicationsTableName).select().all();
-    }
+    const applications = applicationRecords as AirtableRecordLike[];
 
-    const applicationsByJob = jobIds.reduce((acc, jobId) => {
-      acc[jobId] = applications.filter((app) =>
-        getApplicationJobIds(app).includes(jobId)
-      );
-      return acc;
-    }, {} as Record<string, any[]>);
+    const applicationsByJob = jobIds.reduce<Record<string, AirtableRecordLike[]>>(
+      (acc, jobId) => {
+        acc[jobId] = applications.filter((app) =>
+          getApplicationJobIds(app).includes(jobId)
+        );
+        return acc;
+      },
+      {}
+    );
 
-    function isJobUnlocked(job: any) {
-      return (
-        job.manualUnlock === true ||
-        job.paymentStatus === "Paid" ||
-        job.paymentStatus === "Manual" ||
-        job.campaignStatus === "Active"
-      );
-    }
-
-    jobs = baseJobs.map((job) => {
+    jobs = baseJobs.map((job: any) => {
       const apps = applicationsByJob[job.id] || [];
       const unlocked = isJobUnlocked(job);
       const visibleApps = unlocked ? apps : apps.slice(0, visibleLimit);
@@ -220,14 +248,17 @@ export default async function AdminDashboardPage() {
   }
 
   const totalJobs = jobs.length;
+
   const totalApplications = jobs.reduce(
     (acc, job) => acc + (job.applicantsCount || 0),
     0
   );
+
   const newApplications = jobs.reduce(
     (acc, job) => acc + (job.newApplicantsCount || 0),
     0
   );
+
   const activeJobs = jobs.filter((job) => isActiveStatus(job.status || "")).length;
 
   const urgentJob = jobs.find(
@@ -294,9 +325,11 @@ export default async function AdminDashboardPage() {
                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">
                   {label}
                 </p>
+
                 <p className="mt-3 text-4xl font-black tracking-tight text-slate-900">
                   {value}
                 </p>
+
                 <p className="mt-3 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500">
                   {helper}
                 </p>
@@ -311,6 +344,7 @@ export default async function AdminDashboardPage() {
               <h2 className="text-2xl font-black tracking-tight text-slate-900">
                 Állásaid
               </h2>
+
               <p className="mt-1 text-sm font-semibold text-slate-600">
                 Szerkesztés, megtekintés és jelentkezők kezelése egy kártyáról.
               </p>
@@ -333,6 +367,7 @@ export default async function AdminDashboardPage() {
               <h3 className="text-2xl font-black text-slate-900">
                 Még nincs állásod
               </h3>
+
               <p className="mx-auto mt-3 max-w-md text-sm font-medium text-slate-500">
                 Hozd létre az első állást, és találd meg a legjobb jelölteket.
               </p>
@@ -378,7 +413,7 @@ export default async function AdminDashboardPage() {
                           {thumbnail ? (
                             <img
                               src={thumbnail}
-                              alt={job.title}
+                              alt={job.title || "Álláshirdetés képe"}
                               className="h-full w-full object-contain p-2 transition duration-500 group-hover:scale-[1.02]"
                             />
                           ) : (
@@ -391,13 +426,14 @@ export default async function AdminDashboardPage() {
 
                       <div className="flex flex-1 flex-col p-5">
                         <h3 className="line-clamp-2 text-xl font-black leading-tight text-slate-950">
-                          {job.title}
+                          {job.title || "Névtelen állás"}
                         </h3>
 
                         <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-slate-600">
                           <span className="rounded-full bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
                             🏢 {job.company || "Nincs megadva"}
                           </span>
+
                           <span className="rounded-full bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
                             📍 {job.location || "Nincs megadva"}
                           </span>
@@ -414,6 +450,7 @@ export default async function AdminDashboardPage() {
                             <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">
                               Összes
                             </p>
+
                             <p className="mt-1 text-3xl font-black text-slate-900">
                               {job.applicantsCount || 0}
                             </p>
@@ -423,6 +460,7 @@ export default async function AdminDashboardPage() {
                             <p className="text-[11px] font-black uppercase tracking-widest text-blue-400">
                               Új
                             </p>
+
                             <p className="mt-1 text-3xl font-black text-blue-700">
                               {job.newApplicantsCount || 0}
                             </p>
@@ -434,6 +472,7 @@ export default async function AdminDashboardPage() {
                             <p className="text-sm font-black text-slate-900">
                               🔒 {job.hiddenCount} további jelentkező elrejtve
                             </p>
+
                             <p className="mt-1 text-xs font-medium text-slate-600">
                               Aktiváld a kampányt a teljes lista megtekintéséhez.
                             </p>
@@ -496,6 +535,7 @@ export default async function AdminDashboardPage() {
                     Javasolt következő lépés: indíts kampányt a(z){" "}
                     {urgentJob.title} pozícióra
                   </h2>
+
                   <p className="mt-2 text-sm font-semibold text-slate-600">
                     0 jelentkező → a pozíció jelenleg nem hoz jelölteket.
                   </p>
