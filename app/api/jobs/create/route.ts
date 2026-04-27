@@ -1,194 +1,251 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Airtable from "airtable";
+import { cookies } from "next/headers";
+import { verifyAuthToken } from "@/lib/auth";
+import { sendMagicLinkEmail } from "@/lib/email";
+import crypto from "crypto";
 
-type CreateJobRequestBody = {
-  title?: string;
-  slug?: string;
-  company?: string;
-  location?: string;
-  type?: string;
-  employmentType?: string;
-  schedule?: string;
-  salary?: string;
-  shortDescription?: string;
-  description?: string;
-  requirements?: string;
-  benefits?: string;
-  ctaText?: string;
-  status?: string;
-  facebookPostText?: string;
-  image?: string | null;
-  campaign?: {
-    platform?: string;
-    budget?: number;
-    location?: string;
-    goal?: string;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const airtableToken = process.env.AIRTABLE_TOKEN;
+const airtableBaseId = process.env.AIRTABLE_BASE_ID;
+
+const jobsTableName = process.env.AIRTABLE_JOBS_TABLE_NAME || "Jobs";
+const employersTableName =
+  process.env.AIRTABLE_EMPLOYERS_TABLE_NAME || "Employers";
+const companiesTableName =
+  process.env.AIRTABLE_COMPANIES_TABLE_NAME || "Companies";
+const magicLinksTableName =
+  process.env.AIRTABLE_MAGIC_LINKS_TABLE_NAME || "MagicLinks";
+
+const appUrl =
+  process.env.APP_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  "http://localhost:3000";
+
+if (!airtableToken || !airtableBaseId) {
+  throw new Error("Missing Airtable configuration");
+}
+
+const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
+
+function getText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function createSlug(title: string, location?: string) {
+  const raw = `${title}-${location || ""}`;
+
+  return raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ő/g, "o")
+    .replace(/ű/g, "u")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function createMagicToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function createExpiryDate() {
+  return new Date(Date.now() + 15 * 60 * 1000).toISOString();
+}
+
+async function getCurrentEmployer() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("admin_session")?.value;
+
+  if (!token) return null;
+
+  const payload = await verifyAuthToken(token);
+
+  const email =
+    typeof payload?.email === "string" ? payload.email.trim().toLowerCase() : "";
+
+  const employerId =
+    typeof payload?.employerId === "string"
+      ? payload.employerId
+      : typeof payload?.userId === "string"
+        ? payload.userId
+        : typeof payload?.sub === "string"
+          ? payload.sub
+          : "";
+
+  if (employerId) {
+    try {
+      const employer = await base(employersTableName).find(employerId);
+
+      return {
+        id: employer.id,
+        email:
+          getText(employer.get("Email")) ||
+          getText(employer.get("E-mail")) ||
+          email,
+        company: Array.isArray(employer.get("Company"))
+          ? (employer.get("Company") as string[])
+          : [],
+      };
+    } catch {
+      // fallback email keresésre
+    }
+  }
+
+  if (!email) return null;
+
+  const employers = await base(employersTableName)
+    .select({
+      maxRecords: 1,
+      filterByFormula: `LOWER({Email}) = '${email.replace(/'/g, "\\'")}'`,
+    })
+    .firstPage();
+
+  const employer = employers[0];
+
+  if (!employer) return null;
+
+  return {
+    id: employer.id,
+    email: getText(employer.get("Email")) || email,
+    company: Array.isArray(employer.get("Company"))
+      ? (employer.get("Company") as string[])
+      : [],
   };
-};
-
-function normalizeStatus(status?: string) {
-  if (!status) return "Aktív";
-
-  const normalized = status.trim().toLowerCase();
-
-  if (normalized === "aktív" || normalized === "aktiv" || normalized === "active") {
-    return "Aktív";
-  }
-
-  if (normalized === "inaktív" || normalized === "inaktiv" || normalized === "inactive") {
-    return "Inaktív";
-  }
-
-  return status;
 }
 
-function isHttpUrl(value?: string | null) {
-  if (!value) return false;
-  return value.startsWith("http://") || value.startsWith("https://");
+async function createAndSendMagicLink({
+  email,
+  jobId,
+  jobTitle,
+}: {
+  email: string;
+  jobId: string;
+  jobTitle: string;
+}) {
+  const token = createMagicToken();
+  const expiresAt = createExpiryDate();
+
+  await base(magicLinksTableName).create([
+    {
+      fields: {
+        Token: token,
+        Email: email,
+        Purpose: "job_activation",
+        "Expires At": expiresAt,
+        JobId: jobId,
+      },
+    },
+  ]);
+
+  const magicLink = `${appUrl}/api/auth/magic-link?token=${token}`;
+
+  await sendMagicLinkEmail({
+    email,
+    link: magicLink,
+    subject: `Folytasd a(z) "${jobTitle}" hirdetésed`,
+  });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CreateJobRequestBody;
+    const body = await request.json();
 
-    if (!body.title || !body.slug || !body.company) {
+    const title = getText(body.title || body.Title);
+    const companyName = getText(body.company || body.companyName || body.Company);
+    const location = getText(body.location || body.Location);
+    const type = getText(body.type || body.jobType || body.Type);
+    const employmentType = getText(body.employmentType || body["Employment Type"]);
+    const schedule = getText(body.schedule || body.shift || body.Schedule);
+    const salary = getText(body.salary || body.Salary);
+    const shortDescription = getText(
+      body.shortDescription || body["Short Description"]
+    );
+    const description = getText(
+      body.description || body.fullDescription || body.Description
+    );
+    const requirements = getText(body.requirements || body.Requirements);
+    const benefits = getText(body.benefits || body.Benefits);
+    const ctaText = getText(body.ctaText || body["CTA Text"]) || "Jelentkezem";
+
+    if (!title) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "A pozíció neve, a slug és a cég neve kötelező.",
-        },
+        { success: false, error: "A pozíció megadása kötelező." },
         { status: 400 }
       );
     }
 
-    const token = process.env.AIRTABLE_TOKEN;
-    const baseId = process.env.AIRTABLE_BASE_ID;
-    const tableName = process.env.AIRTABLE_JOBS_TABLE_NAME;
+    const currentEmployer = await getCurrentEmployer();
 
-    if (!token || !baseId || !tableName) {
-      console.error("❌ Hiányzó Airtable környezeti változók.", {
-        hasToken: !!token,
-        hasBaseId: !!baseId,
-        hasJobsTable: !!tableName,
-      });
-
+    if (!currentEmployer) {
       return NextResponse.json(
         {
           success: false,
-          message: "A rendszer nincs megfelelően konfigurálva.",
+          error: "Nem található bejelentkezett employer/user.",
         },
-        { status: 500 }
+        { status: 401 }
       );
     }
 
-    const base = new Airtable({ apiKey: token }).base(baseId);
+    const slug = createSlug(title, location);
 
-    const normalizedStatus = normalizeStatus(body.status);
+    const fields: Record<string, unknown> = {
+      Title: title,
+      Slug: slug,
+      Status: "Aktív",
 
-    const recordFields: Record<string, unknown> = {
-      Title: body.title,
-      Slug: body.slug,
-      Company: body.company,
-      Location: body.location || "",
-      Type: body.type || "",
-      "Employment Type": body.employmentType || "",
-      Schedule: body.schedule || "",
-      Salary: body.salary || "",
-      "Short Description": body.shortDescription || "",
-      Description: body.description || "",
-      Requirements: body.requirements || "",
-      Benefits: body.benefits || "",
-      "CTA Text": body.ctaText || "Jelentkezés az állásra",
-      "Campaign Platform": body.campaign?.platform || "",
-      "Campaign Budget Daily":
-        body.campaign?.budget != null && !Number.isNaN(Number(body.campaign.budget))
-          ? Number(body.campaign.budget)
-          : null,
-      "Campaign Target Location": body.campaign?.location || "",
-      "Campaign Goal": body.campaign?.goal || "",
-      "Facebook Post Text": body.facebookPostText || "",
-      Status: normalizedStatus,
+      Company: companyName,
+      Location: location,
+      Type: type,
+      "Employment Type": employmentType,
+      Schedule: schedule,
+      Salary: salary,
+      "Short Description": shortDescription,
+      Description: description,
+      Requirements: requirements,
+      Benefits: benefits,
+      "CTA Text": ctaText,
+
+      User: currentEmployer.email,
+      Owner: currentEmployer.email,
     };
 
-    /**
-     * FONTOS:
-     * A mostani AI route data:image/png;base64,... stringet küld vissza.
-     * Ezt az Airtable attachment mezőbe nem érdemes közvetlenül menteni.
-     *
-     * Ha később publikus URL-t kapsz vissza (pl. Vercel Blob / Cloudinary),
-     * akkor ide be lehet kötni az attachment mezőt is.
-     */
-    if (isHttpUrl(body.image)) {
-      // Ha létrehozol az Airtable-ben egy attachment mezőt pl. "Generated Image" néven,
-      // akkor ezt később használhatod:
-      // recordFields["Generated Image"] = [{ url: body.image }];
-      //
-      // Most biztonságosan egy sima URL mezőhöz kötjük, ha van ilyen.
-      recordFields["Generated Image URL"] = body.image;
+    const createdJob = await base(jobsTableName).create([{ fields }]);
+    const jobId = createdJob[0].id;
+
+    try {
+      await createAndSendMagicLink({
+        email: currentEmployer.email,
+        jobId,
+        jobTitle: title,
+      });
+    } catch (emailError) {
+      console.error("Magic link email hiba:", emailError);
     }
-
-    const payload = Object.fromEntries(
-      Object.entries(recordFields).filter(
-        ([, value]) => value !== "" && value !== null && value !== undefined
-      )
-    );
-
-    console.log(`⏳ Állás mentése az Airtable-be (${tableName})...`);
-    console.log("📦 Mentett mezők:", Object.keys(payload));
-
-    const records = await base(tableName).create([
-      {
-        fields: payload as any,
-      },
-    ]);
-
-    const createdRecord = records[0];
-
-    console.log("✅ Új állás sikeresen rögzítve az Airtable-ben.");
-    console.log(`📌 Pozíció: ${body.title} | Airtable ID: ${createdRecord.id}`);
 
     return NextResponse.json({
       success: true,
-      message: "Az állás sikeresen létrejött.",
-      data: {
-        jobId: createdRecord.id,
-        slug: body.slug,
-        imageStoredAsUrl: isHttpUrl(body.image),
-        imageRequiresUpload:
-          !!body.image && !isHttpUrl(body.image),
-      },
+      jobId,
+      slug,
+      employerId: currentEmployer.id,
+      employerEmail: currentEmployer.email,
+      magicLinkEmailSent: true,
     });
-  } catch (error: any) {
-    const isDev = process.env.NODE_ENV === "development";
-
-    console.error("❌ Hiba történt az állás mentésekor:");
-    console.error(
-      JSON.stringify(
-        {
-          message: error?.message,
-          statusCode: error?.statusCode,
-          error: error?.error,
-          stack: isDev ? error?.stack : undefined,
-        },
-        null,
-        2
-      )
-    );
+  } catch (error) {
+    console.error("Job create error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: isDev
-          ? error?.message || "Airtable API hiba történt."
-          : "Szerver hiba történt az adatok feldolgozása során.",
-        details: isDev
-          ? {
-              statusCode: error?.statusCode,
-              type: error?.type || error?.error,
-            }
-          : undefined,
+        error:
+          error instanceof Error ? error.message : "Ismeretlen hiba történt.",
       },
-      { status: error?.statusCode || 500 }
+      { status: 500 }
     );
   }
 }

@@ -1,25 +1,35 @@
 import { NextResponse } from "next/server";
 import Airtable from "airtable";
-import { createMagicLink, ensureEmployer } from "@/lib/magic-links";
 import crypto from "crypto";
+import { createMagicLink } from "@/lib/magic-links";
+import { sendMagicLinkEmail } from "@/lib/email";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function getText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  return "";
+}
 
 function slugify(value: string) {
   return value
     .toLowerCase()
-    .replace(/[áäàãâ]/g, "a")
-    .replace(/[éèêë]/g, "e")
-    .replace(/[íìîï]/g, "i")
-    .replace(/[óöőòôõ]/g, "o")
-    .replace(/[úüűùû]/g, "u")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ő/g, "o")
+    .replace(/ű/g, "u")
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)+/g, "");
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 70);
 }
 
 type PublicCreateJobBody = {
-  title: string;
-  location: string;
-  salary: string;
-  email: string;
+  title?: string;
+  location?: string;
+  salary?: string;
+  email?: string;
   shortDescription?: string;
   campaign?: {
     platform?: string;
@@ -33,108 +43,136 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as PublicCreateJobBody;
 
-    if (!body.title || !body.location || !body.salary || !body.email) {
+    const title = getText(body.title);
+    const location = getText(body.location);
+    const salary = getText(body.salary);
+    const email = getText(body.email).toLowerCase();
+    const shortDescription = getText(body.shortDescription);
+
+    if (!title || !location || !salary || !email) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Title, location, salary, and email are required.",
-        },
+        { success: false, message: "Hiányzó kötelező mezők." },
         { status: 400 }
       );
     }
 
-    const token = process.env.AIRTABLE_TOKEN;
-    const baseId = process.env.AIRTABLE_BASE_ID;
-    const tableName = process.env.AIRTABLE_JOBS_TABLE_NAME;
-
-    if (!token || !baseId || !tableName) {
-      console.error("❌ Missing Airtable config.");
+    if (!email.includes("@")) {
       return NextResponse.json(
-        { success: false, message: "Server misconfiguration." },
+        { success: false, message: "Érvénytelen email cím." },
+        { status: 400 }
+      );
+    }
+
+    const airtableToken = process.env.AIRTABLE_TOKEN;
+    const airtableBaseId = process.env.AIRTABLE_BASE_ID;
+    const jobsTableName = process.env.AIRTABLE_JOBS_TABLE_NAME || "Jobs";
+
+    if (!airtableToken || !airtableBaseId) {
+      return NextResponse.json(
+        { success: false, message: "Hiányzó Airtable konfiguráció." },
         { status: 500 }
       );
     }
 
-    const base = new Airtable({ apiKey: token }).base(baseId);
+    const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
 
-    // Ensure employer exists
-    const employer = await ensureEmployer(body.email);
+    const slug = `${slugify(title)}-${Math.random()
+      .toString(36)
+      .substring(2, 7)}`;
 
-    // Auto-generate slug and default company (if empty)
-    const slug = slugify(body.title) + "-" + Math.random().toString(36).substring(2, 6);
-    
-    // Create draft job
-    const recordFields: Record<string, unknown> = {
-      Title: body.title,
+    const jobFields: Record<string, unknown> = {
+      Title: title,
       Slug: slug,
-      Location: body.location,
-      Salary: body.salary,
-      "Short Description": body.shortDescription || "",
-      "Campaign Platform": body.campaign?.platform || "",
-      "Campaign Budget Daily":
-        body.campaign?.budget != null && !Number.isNaN(Number(body.campaign.budget))
-          ? Number(body.campaign.budget)
-          : null,
-      "Campaign Target Location": body.campaign?.location || "",
-      "Campaign Goal": body.campaign?.goal || "",
-      Status: "Inaktív", // Or Draft
-      Employer: [employer.id],
-      Company: body.email.split("@")[0], // Placeholder company
+      Status: "Piszkozat",
+      Company: email.split("@")[0],
+      Location: location,
+      Salary: salary,
+      "Short Description": shortDescription,
+      User: email,
+      Owner: email,
+      "Submitted Email": email,
     };
 
-    const payload = Object.fromEntries(
-      Object.entries(recordFields).filter(
+    if (body.campaign?.platform) {
+      jobFields["Campaign Platform"] = getText(body.campaign.platform);
+    }
+
+    if (body.campaign?.location) {
+      jobFields["Campaign Target Location"] = getText(body.campaign.location);
+    }
+
+    if (body.campaign?.goal) {
+      jobFields["Campaign Goal"] = getText(body.campaign.goal);
+    }
+
+    if (
+      body.campaign?.budget !== undefined &&
+      body.campaign?.budget !== null &&
+      !Number.isNaN(Number(body.campaign.budget))
+    ) {
+      jobFields["Campaign Budget Daily"] = Number(body.campaign.budget);
+    }
+
+    const cleanedJobFields = Object.fromEntries(
+      Object.entries(jobFields).filter(
         ([, value]) => value !== "" && value !== null && value !== undefined
       )
     );
 
-    console.log(`⏳ Creating draft job in Airtable...`);
-    const records = await base(tableName).create([
-      { fields: payload as any },
+    const createdJobs = await base(jobsTableName).create([
+      {
+        fields: cleanedJobFields as any,
+      },
     ]);
 
-    const createdRecord = records[0];
-    console.log("✅ Draft job created:", createdRecord.id);
+    const createdJob = createdJobs[0];
 
-    // Generate magic link
     const magicToken = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
     await createMagicLink({
       token: magicToken,
-      email: body.email.toLowerCase().trim(),
-      jobId: createdRecord.id,
+      email,
+      jobId: createdJob.id,
       purpose: "job_activation",
-      expiresAt: expiresAt.toISOString(),
+      expiresAt,
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const loginUrl = `${baseUrl}/api/auth/verify?token=${magicToken}`;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      "http://localhost:3000";
 
-    console.log("\n==============================================");
-    console.log(`📧 MAGIC LINK GENERATED FOR DRAFT JOB`);
-    console.log(`To: ${body.email}`);
-    console.log(`Purpose: job_activation`);
-    console.log(`Job ID: ${createdRecord.id}`);
-    console.log(`Link: ${loginUrl}`);
-    console.log("==============================================\n");
+    const magicLink = `${baseUrl}/api/auth/verify?token=${magicToken}`;
+
+    await sendMagicLinkEmail({
+      email,
+      link: magicLink,
+      subject: "Véglegesítsd az álláshirdetésed a Workzy-ban",
+    });
 
     return NextResponse.json({
       success: true,
-      message: "Job drafted successfully. Magic link sent.",
+      message:
+        "Az állás piszkozatként létrejött, a belépési linket elküldtük emailben.",
       data: {
-        jobId: createdRecord.id,
+        jobId: createdJob.id,
+        slug,
+        email,
       },
+      magicLinkEmailSent: true,
     });
   } catch (error: any) {
-    console.error("❌ Error in public job creation:", error);
+    console.error("PUBLIC JOB CREATE ERROR:", error);
+
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to process job creation request.",
+        message:
+          error?.message ||
+          "Hiba történt az állás létrehozása közben. Kérlek próbáld újra.",
       },
-      { status: 500 }
+      { status: error?.statusCode || 500 }
     );
   }
 }

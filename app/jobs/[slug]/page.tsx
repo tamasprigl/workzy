@@ -2,6 +2,7 @@ import Airtable from "airtable";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import ApplicationForm from "./ApplicationForm";
+import { safeParseApplicationQuestions } from "@/lib/applicationQuestions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -192,6 +193,10 @@ export default async function PublicJobPage({ params }: PageProps) {
   const generatedImageUrl = getAttachmentUrl(jobRecord.get("Generated Image"));
   const jobImage = generatedImageUrl || FALLBACK_IMAGE;
 
+  const applicationQuestions = safeParseApplicationQuestions(
+    jobRecord.get("Application Questions")
+  );
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-white text-slate-900">
       <section className="relative overflow-hidden">
@@ -236,77 +241,15 @@ export default async function PublicJobPage({ params }: PageProps) {
                 )}
 
                 <div className="mt-8 flex flex-wrap gap-3">
-                  {location && (
-                    <InfoPill
-                      icon={
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-sky-600"
-                        >
-                          <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
-                          <circle cx="12" cy="10" r="3" />
-                        </svg>
-                      }
-                    >
-                      {location}
-                    </InfoPill>
-                  )}
+                  {location && <InfoPill>{location}</InfoPill>}
 
                   {(type || employmentType) && (
-                    <InfoPill
-                      icon={
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-sky-600"
-                        >
-                          <rect width="16" height="13" x="4" y="8" rx="2" ry="2" />
-                          <path d="M16 4V2a2 2 0 0 0-2-2H10a2 2 0 0 0-2 2v2" />
-                        </svg>
-                      }
-                    >
+                    <InfoPill>
                       {[type, employmentType].filter(Boolean).join(" • ")}
                     </InfoPill>
                   )}
 
-                  {schedule && (
-                    <InfoPill
-                      icon={
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-sky-600"
-                        >
-                          <circle cx="12" cy="12" r="10" />
-                          <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                      }
-                    >
-                      {schedule}
-                    </InfoPill>
-                  )}
+                  {schedule && <InfoPill>{schedule}</InfoPill>}
                 </div>
               </div>
 
@@ -364,69 +307,21 @@ export default async function PublicJobPage({ params }: PageProps) {
               title="Feladatok és részletek"
               content={description}
               asList={false}
-              icon={
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" x2="8" y1="13" y2="13" />
-                  <line x1="16" x2="8" y1="17" y2="17" />
-                  <line x1="10" x2="8" y1="9" y2="9" />
-                </svg>
-              }
+              icon={<span>📋</span>}
             />
 
             <SectionCard
               title="Elvárások"
               content={requirements}
               asList
-              icon={
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-                  <path d="m9 12 2 2 4-4" />
-                </svg>
-              }
+              icon={<span>✅</span>}
             />
 
             <SectionCard
               title="Amit kínálunk"
               content={benefits}
               asList
-              icon={
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 2v20" />
-                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
-              }
+              icon={<span>💰</span>}
             />
           </div>
 
@@ -446,7 +341,12 @@ export default async function PublicJobPage({ params }: PageProps) {
               </p>
             </div>
 
-            <ApplicationForm jobId={jobId} jobSlug={slug} jobTitle={jobTitle} />
+            <ApplicationForm
+              jobId={jobId}
+              jobSlug={slug}
+              jobTitle={jobTitle}
+              questions={applicationQuestions}
+            />
           </div>
         </div>
       </section>

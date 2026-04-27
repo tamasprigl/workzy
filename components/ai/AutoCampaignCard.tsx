@@ -36,14 +36,6 @@ export default function AutoCampaignCard({ job }: AutoCampaignCardProps) {
     return () => observer.disconnect();
   }, []);
 
-  const handleStartCampaign = () => {
-    setIsStarting(true);
-    // TODO: Connect to Meta Ads API / Google Ads API
-    setTimeout(() => {
-      window.location.href = `/admin/jobs/${job.id}/campaign?autoStart=true`;
-    }, 600);
-  };
-
   if (!job) return null;
 
   return (
@@ -128,15 +120,12 @@ export default function AutoCampaignCard({ job }: AutoCampaignCardProps) {
         <p className="text-[13px] text-slate-500 font-medium mb-3">
           👉 Több mint 120 hasonló kampány fut jelenleg a rendszerben
         </p>
-        <button 
-          onClick={handleStartCampaign}
-          disabled={isStarting}
+        <Link 
+          href={`/admin/jobs/${job.id}/campaign?autoStart=true`}
           className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl py-4 px-10 text-[16px] font-bold shadow-[0_12px_25px_rgba(79,70,229,0.35)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_20px_40px_rgba(79,70,229,0.45)] active:scale-[0.97] flex justify-center items-center"
         >
-          {isStarting ? (
-            <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-          ) : "🚀 Kampány indítása most – jelentkezők szerzése"}
-        </button>
+          🚀 Kampány indítása most – jelentkezők szerzése
+        </Link>
         
         <div className="mt-4 text-center">
           <p className="text-[13px] font-bold text-emerald-600 mb-2">

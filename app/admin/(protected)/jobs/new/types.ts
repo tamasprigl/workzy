@@ -1,3 +1,5 @@
+import type { ApplicationQuestion } from "@/lib/applicationQuestions";
+
 export type JobFormData = {
   title: string;
   slug: string;
@@ -14,9 +16,12 @@ export type JobFormData = {
   ctaText: string;
   channels: string;
   budget: string;
-  // Campaign Extension
+
   platform: string;
   campaignLocation: string;
   objective: string;
   facebookPostText?: string;
+
+  // 🔥 ÚJ
+  applicationQuestions: ApplicationQuestion[];
 };

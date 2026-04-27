@@ -2,171 +2,310 @@
 
 import Airtable from "airtable";
 import { cookies } from "next/headers";
-import { verifyAuthToken } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { verifyAuthToken } from "@/lib/auth";
 
 const airtableToken = process.env.AIRTABLE_TOKEN;
 const airtableBaseId = process.env.AIRTABLE_BASE_ID;
-const employersTableName = process.env.AIRTABLE_EMPLOYERS_TABLE_NAME || "Employers";
-const companiesTableName = process.env.AIRTABLE_COMPANIES_TABLE_NAME || "Companies";
+
+const usersTableName = process.env.AIRTABLE_USERS_TABLE_NAME || "Users";
+const employersTableName =
+  process.env.AIRTABLE_EMPLOYERS_TABLE_NAME || "Employers";
+const companiesTableName =
+  process.env.AIRTABLE_COMPANIES_TABLE_NAME || "Companies";
 const jobsTableName = process.env.AIRTABLE_JOBS_TABLE_NAME || "Jobs";
 
-export async function checkOnboardingStatus() {
+function getText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function escapeAirtable(value: string): string {
+  return value.replace(/'/g, "\\'");
+}
+
+function getLinkedIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getBase() {
+  if (!airtableToken || !airtableBaseId) {
+    throw new Error("Missing Airtable configuration");
+  }
+
+  return new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
+}
+
+function getSessionData(session: unknown): {
+  email: string;
+  recordId: string;
+} {
+  if (!session || typeof session !== "object") {
+    return { email: "", recordId: "" };
+  }
+
+  const data = session as Record<string, unknown>;
+
+  const rawEmail =
+    getText(data.email) ||
+    getText(data.username) ||
+    getText(data.userEmail);
+
+  const rawRecordId =
+    getText(data.id) ||
+    getText(data.recordId) ||
+    getText(data.employerId) ||
+    getText(data.userId) ||
+    getText(data.sub);
+
+  return {
+    email: rawEmail.includes("@") ? rawEmail.toLowerCase().trim() : "",
+    recordId: rawRecordId.startsWith("rec") ? rawRecordId.trim() : "",
+  };
+}
+
+async function findEmailFromTable(
+  base: Airtable.Base,
+  tableName: string,
+  recordId: string
+): Promise<string> {
+  try {
+    const record = await base(tableName).find(recordId);
+
+    return (
+      getText(record.get("Email")) ||
+      getText(record.get("E-mail")) ||
+      getText(record.get("Email Address")) ||
+      getText(record.get("User")) ||
+      getText(record.get("Owner"))
+    )
+      .toLowerCase()
+      .trim();
+  } catch {
+    return "";
+  }
+}
+
+async function resolveSessionEmail(): Promise<string> {
   const cookieStore = await cookies();
   const token = cookieStore.get("admin_session")?.value;
-  if (!token) return { isComplete: false };
 
-  const session = await verifyAuthToken(token);
-  if (!session || !session.username) return { isComplete: false };
-
-  if (!airtableToken || !airtableBaseId) return { isComplete: false };
-
-  const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
+  if (!token) return "";
 
   try {
-    const normalizedEmail = session.username.toLowerCase().trim();
-    const filterFormula = `LOWER({Email}) = '${normalizedEmail}'`;
+    const session = await verifyAuthToken(token);
+    const sessionData = getSessionData(session);
 
-    const employers = await base(employersTableName)
-      .select({ filterByFormula: filterFormula, maxRecords: 1 })
-      .firstPage();
+    if (sessionData.email) {
+      return sessionData.email;
+    }
 
-    if (employers.length === 0) return { isComplete: false };
-    
-    const employer = employers[0];
-    const companyIds = employer.fields["Company"] as string[] | undefined;
+    if (!sessionData.recordId) {
+      console.log("Invalid onboarding session payload:", session);
+      return "";
+    }
 
-    if (!companyIds || companyIds.length === 0) return { isComplete: false };
+    const base = getBase();
 
-    const company = await base(companiesTableName).find(companyIds[0]);
-    if (!company || !company.fields["Profile Complete"]) {
+    const emailFromUsers = await findEmailFromTable(
+      base,
+      usersTableName,
+      sessionData.recordId
+    );
+
+    if (emailFromUsers) {
+      return emailFromUsers;
+    }
+
+    const emailFromEmployers = await findEmailFromTable(
+      base,
+      employersTableName,
+      sessionData.recordId
+    );
+
+    return emailFromEmployers;
+  } catch (error) {
+    console.error("Failed to resolve session email:", error);
+    return "";
+  }
+}
+
+async function resolveSessionEmailWithDevFallback(): Promise<string> {
+  const email = await resolveSessionEmail();
+
+  if (email) {
+    return email;
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("Onboarding email resolve failed. Using dev fallback.");
+    return "tamas.prigl@gmail.com";
+  }
+
+  return "";
+}
+
+async function findOrCreateEmployer(base: Airtable.Base, email: string) {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const employers = await base(employersTableName)
+    .select({
+      maxRecords: 1,
+      filterByFormula: `LOWER({Email}) = '${escapeAirtable(normalizedEmail)}'`,
+    })
+    .firstPage();
+
+  if (employers[0]) {
+    return employers[0];
+  }
+
+  const created = await base(employersTableName).create([
+    {
+      fields: {
+        Email: normalizedEmail,
+      },
+    },
+  ]);
+
+  return created[0];
+}
+
+export async function checkOnboardingStatus() {
+  const email = await resolveSessionEmailWithDevFallback();
+
+  if (!email) {
+    return { isComplete: false };
+  }
+
+  try {
+    const base = getBase();
+    const employer = await findOrCreateEmployer(base, email);
+
+    const companyIds = getLinkedIds(employer.get("Company"));
+
+    if (companyIds.length === 0) {
       return { isComplete: false };
     }
 
-    return { isComplete: true };
-  } catch (err) {
-    console.error("Failed to check onboarding:", err);
-    return { isComplete: false }; // Fail closed
+    const company = await base(companiesTableName).find(companyIds[0]);
+
+    const isProfileComplete =
+      company.get("Profile Complete") === true ||
+      getText(company.get("Profile Complete")).toLowerCase() === "true";
+
+    return {
+      isComplete: isProfileComplete,
+    };
+  } catch (error) {
+    console.error("Failed to check onboarding:", error);
+    return { isComplete: false };
   }
 }
 
 export async function submitOnboarding(formData: FormData) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("admin_session")?.value;
-  if (!token) throw new Error("Not logged in");
+  const email = await resolveSessionEmailWithDevFallback();
 
-  const session = await verifyAuthToken(token);
-  if (!session || !session.username) throw new Error("Invalid session");
+  if (!email) {
+    throw new Error("Invalid session");
+  }
 
-  const email = session.username;
-  const name = formData.get("name") as string;
-  const website = formData.get("website") as string;
-  const description = formData.get("description") as string;
+  const name = getText(formData.get("name"));
+  const website = getText(formData.get("website"));
+  const description = getText(formData.get("description"));
 
-  if (!name || !name.trim()) throw new Error("Company name is required");
+  if (!name) {
+    throw new Error("Company name is required");
+  }
 
-  if (!airtableToken || !airtableBaseId) throw new Error("Configuration error");
-  const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
+  const base = getBase();
 
   try {
-    // 1. Find Employer by Email safely
-    const normalizedEmail = email.toLowerCase().trim();
-    const filterFormula = `LOWER({Email}) = '${normalizedEmail}'`;
+    const employer = await findOrCreateEmployer(base, email);
+    const existingCompanyIds = getLinkedIds(employer.get("Company"));
 
-    let employers = await base(employersTableName)
-      .select({ filterByFormula: filterFormula, maxRecords: 1 })
-      .firstPage();
-
-    if (employers.length === 0) {
-      console.error("Employer lookup failed. Creating automatically...");
-      console.error("Lookup input:", {
-        email,
-        normalizedEmail,
-        tableName: employersTableName,
-        filterFormula,
-      });
-      console.error("Employers found:", employers.length);
-
-      // Create the missing employer automatically
-      const created = await base(employersTableName).create([
-        { fields: { Email: normalizedEmail } as Airtable.FieldSet }
-      ]);
-      employers = created;
-    }
-
-    const employer = employers[0];
-    const companyIds = employer.fields["Company"] as string[] | undefined;
-    
-    let companyId: string;
-
-    // 2. Create or Update Company
-    const companyFields: Record<string, unknown> = {
-      Name: name.trim(),
+    const companyFields: Airtable.FieldSet = {
+      Name: name,
       "Profile Complete": true,
     };
 
-    if (website && website.trim()) companyFields["Website"] = website.trim();
-    if (description && description.trim()) companyFields["Description"] = description.trim();
+    if (website) {
+      companyFields.Website = website;
+    }
 
-    if (companyIds && companyIds.length > 0) {
-      companyId = companyIds[0];
-      
-      console.log("Saving onboarding...");
-      console.log("Table:", companiesTableName);
-      console.log("Record ID:", companyId);
-      console.log("Fields:", companyFields);
+    if (description) {
+      companyFields.Description = description;
+    }
 
-      const result = await base(companiesTableName).update([
-        { id: companyId, fields: companyFields as Airtable.FieldSet }
+    let companyId = "";
+
+    if (existingCompanyIds.length > 0) {
+      companyId = existingCompanyIds[0];
+
+      await base(companiesTableName).update([
+        {
+          id: companyId,
+          fields: companyFields,
+        },
       ]);
-      console.log("Airtable response:", result);
     } else {
-      console.log("Saving onboarding...");
-      console.log("Table:", companiesTableName);
-      console.log("Fields:", companyFields);
-
-      const newCompany = await base(companiesTableName).create([
-        { fields: companyFields as Airtable.FieldSet }
+      const createdCompany = await base(companiesTableName).create([
+        {
+          fields: companyFields,
+        },
       ]);
-      companyId = newCompany[0].id;
-      console.log("Airtable response:", newCompany);
 
-      // Link Employer to new Company without overwriting email
+      companyId = createdCompany[0].id;
+
       await base(employersTableName).update([
-        { id: employer.id, fields: { Company: [companyId] } }
+        {
+          id: employer.id,
+          fields: {
+            Company: [companyId],
+          },
+        },
       ]);
     }
 
-    // 3. Update pending jobs safely
+    const normalizedEmail = email.toLowerCase().trim();
+
     const pendingJobs = await base(jobsTableName)
       .select({
-        filterByFormula: `AND(LOWER({Submitted Email}) = '${normalizedEmail}', {Status} = 'Awaiting Profile')`
+        filterByFormula: `OR(
+          LOWER({Submitted Email}) = '${escapeAirtable(normalizedEmail)}',
+          LOWER({User}) = '${escapeAirtable(normalizedEmail)}',
+          LOWER({Owner}) = '${escapeAirtable(normalizedEmail)}'
+        )`,
       })
       .all();
 
-    if (pendingJobs.length > 0) {
-      const updates = pendingJobs.map(job => ({
-        id: job.id,
-        fields: { Status: "Ready" }
-      }));
-      
-      // Update in batches of up to 10 records as per Airtable SDK limits
-      for (let i = 0; i < updates.length; i += 10) {
-        await base(jobsTableName).update(updates.slice(i, i + 10));
-      }
+    const updates = pendingJobs.map((job) => ({
+      id: job.id,
+      fields: {
+        Owner: normalizedEmail,
+        User: normalizedEmail,
+        "Company Record": [companyId],
+        Status: "Aktív",
+      } as Airtable.FieldSet,
+    }));
+
+    for (let i = 0; i < updates.length; i += 10) {
+      await base(jobsTableName).update(updates.slice(i, i + 10));
     }
   } catch (error) {
     console.error("Onboarding error full:", error);
 
     if (error instanceof Error) {
-      console.error("Message:", error.message);
-      console.error("Stack:", error.stack);
       throw error;
     }
 
     throw new Error(`Failed to save profile: ${String(error)}`);
   }
 
-  // Redirect on success
-  redirect("/admin/jobs/new");
+  redirect("/admin/jobs");
 }

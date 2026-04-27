@@ -3,6 +3,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { JobFormData } from "./types";
+import {
+  PRESET_APPLICATION_QUESTIONS,
+  type ApplicationQuestion,
+  type ApplicationQuestionType,
+} from "@/lib/applicationQuestions";
 
 interface NewJobFormProps {
   formData: JobFormData;
@@ -10,12 +15,22 @@ interface NewJobFormProps {
   jobId?: string;
 }
 
+function safeQuestions(formData: JobFormData): ApplicationQuestion[] {
+  return Array.isArray(formData.applicationQuestions)
+    ? formData.applicationQuestions
+    : [];
+}
+
 function generateFacebookPost(job: JobFormData): string {
   if (!job.title) return "Írd be az állás nevét az előnézethez...";
 
   const salaryText = job.salary ? `💰 Kiemelt bérezés: ${job.salary}\n` : "";
-  const locationText = job.location ? `📍 Munkavégzés helye: ${job.location}\n` : "";
-  const companyText = job.company ? `${job.company} bővül, új kollégát keresünk.` : "Új munkatársat keresünk.";
+  const locationText = job.location
+    ? `📍 Munkavégzés helye: ${job.location}\n`
+    : "";
+  const companyText = job.company
+    ? `${job.company} bővül, új kollégát keresünk.`
+    : "Új munkatársat keresünk.";
   const shortText = job.shortDescription ? `👉 ${job.shortDescription}\n` : "";
 
   return `📢 ÚJ ÁLLÁSLEHETŐSÉG: ${job.title.toUpperCase()}! 🚀
@@ -25,7 +40,9 @@ ${shortText}${locationText}${salaryText}
 Jelentkezz gyorsan és egyszerűen az alábbi linken! 👇
 workzy.hu/jobs/${job.slug || "uj-allas"}
 
-#állás #munka #${job.location ? job.location.replace(/[\s,]+/g, "") : "karrier"} #${job.title.replace(/[\s,]+/g, "")}`;
+#állás #munka #${
+    job.location ? job.location.replace(/[\s,]+/g, "") : "karrier"
+  } #${job.title.replace(/[\s,]+/g, "")}`;
 }
 
 function slugify(value: string) {
@@ -68,7 +85,9 @@ function Input({
   name: string;
   value: string;
   onChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => void;
   placeholder?: string;
   required?: boolean;
@@ -79,7 +98,7 @@ function Input({
       required={required}
       type={type}
       name={name}
-      value={value}
+      value={value || ""}
       onChange={onChange}
       className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
       placeholder={placeholder}
@@ -98,7 +117,9 @@ function TextArea({
   name: string;
   value: string;
   onChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => void;
   placeholder?: string;
   required?: boolean;
@@ -108,7 +129,7 @@ function TextArea({
     <textarea
       required={required}
       name={name}
-      value={value}
+      value={value || ""}
       onChange={onChange}
       rows={rows}
       className="w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
@@ -126,14 +147,16 @@ function Select({
   name: string;
   value: string;
   onChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => void;
   children: React.ReactNode;
 }) {
   return (
     <select
       name={name}
-      value={value}
+      value={value || ""}
       onChange={onChange}
       className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
     >
@@ -156,16 +179,24 @@ export default function NewJobForm({
   const [imageError, setImageError] = useState("");
   const [submitError, setSubmitError] = useState("");
 
+  const questions = safeQuestions(formData);
+
   const canGenerateImage = useMemo(() => {
     return (
-      formData.title.trim().length > 0 &&
-      formData.location.trim().length > 0 &&
-      formData.salary.trim().length > 0
+      (formData.title || "").trim().length > 0 &&
+      (formData.location || "").trim().length > 0 &&
+      (formData.salary || "").trim().length > 0
     );
   }, [formData.title, formData.location, formData.salary]);
 
+  const selectedPresetCount = questions.filter((item) =>
+    PRESET_APPLICATION_QUESTIONS.some((preset) => preset.id === item.id)
+  ).length;
+
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -173,8 +204,7 @@ export default function NewJobForm({
 
   const handleSlugify = () => {
     if (!formData.title) return;
-    const slug = slugify(formData.title);
-    setFormData((prev) => ({ ...prev, slug }));
+    setFormData((prev) => ({ ...prev, slug: slugify(formData.title) }));
   };
 
   const handleGenerateImage = async () => {
@@ -186,9 +216,7 @@ export default function NewJobForm({
     try {
       const response = await fetch("/api/generate-job-image", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: formData.title.trim(),
           location: formData.location.trim(),
@@ -208,16 +236,80 @@ export default function NewJobForm({
 
       setGeneratedImage(result.image);
     } catch (error) {
-      const message =
+      setImageError(
         error instanceof Error
           ? error.message
-          : "Hiba történt a képgenerálás során.";
-
-      setImageError(message);
+          : "Hiba történt a képgenerálás során."
+      );
     } finally {
       setIsGeneratingImage(false);
     }
   };
+
+  function togglePresetQuestion(question: ApplicationQuestion, checked: boolean) {
+    setFormData((prev) => {
+      const prevQuestions = Array.isArray(prev.applicationQuestions)
+        ? prev.applicationQuestions
+        : [];
+
+      return {
+        ...prev,
+        applicationQuestions: checked
+          ? [...prevQuestions, question]
+          : prevQuestions.filter((item) => item.id !== question.id),
+      };
+    });
+  }
+
+  function addCustomQuestion() {
+    const customQuestion: ApplicationQuestion = {
+      id: "custom_1",
+      label: "",
+      type: "text",
+      required: false,
+    };
+
+    setFormData((prev) => {
+      const prevQuestions = Array.isArray(prev.applicationQuestions)
+        ? prev.applicationQuestions
+        : [];
+
+      return {
+        ...prev,
+        applicationQuestions: [...prevQuestions, customQuestion],
+      };
+    });
+  }
+
+  function updateCustomQuestion(update: Partial<ApplicationQuestion>) {
+    setFormData((prev) => {
+      const prevQuestions = Array.isArray(prev.applicationQuestions)
+        ? prev.applicationQuestions
+        : [];
+
+      return {
+        ...prev,
+        applicationQuestions: prevQuestions.map((item) =>
+          item.id === "custom_1" ? { ...item, ...update } : item
+        ),
+      };
+    });
+  }
+
+  function removeCustomQuestion() {
+    setFormData((prev) => {
+      const prevQuestions = Array.isArray(prev.applicationQuestions)
+        ? prev.applicationQuestions
+        : [];
+
+      return {
+        ...prev,
+        applicationQuestions: prevQuestions.filter(
+          (item) => item.id !== "custom_1"
+        ),
+      };
+    });
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,6 +318,14 @@ export default function NewJobForm({
 
     try {
       const fbPreviewText = generateFacebookPost(formData);
+
+      const cleanedQuestions = questions.filter((question) => {
+        if (question.id === "custom_1") {
+          return question.label.trim().length > 0;
+        }
+
+        return true;
+      });
 
       const payload = {
         title: formData.title,
@@ -243,6 +343,7 @@ export default function NewJobForm({
         ctaText: formData.ctaText,
         facebookPostText: fbPreviewText,
         image: generatedImage,
+        applicationQuestions: cleanedQuestions,
         campaign: {
           platform: formData.platform,
           budget: formData.budget ? Number(formData.budget) : undefined,
@@ -256,9 +357,7 @@ export default function NewJobForm({
 
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyPayload),
       });
 
@@ -277,7 +376,7 @@ export default function NewJobForm({
 
       setTimeout(() => {
         router.push("/admin/jobs");
-      }, 2200);
+      }, 1200);
     } catch (err) {
       console.error(err);
       setIsSubmitting(false);
@@ -293,61 +392,27 @@ export default function NewJobForm({
     return (
       <div className="flex h-full animate-in zoom-in flex-col items-center justify-center py-20 text-center fade-in duration-500">
         <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-[0_0_30px_rgba(16,185,129,0.18)]">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="40"
-            height="40"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
+          ✓
         </div>
 
         <h2 className="mb-2 text-3xl font-bold text-slate-900">
-          Állás sikeresen közzétéve!
+          Állás sikeresen mentve!
         </h2>
 
         <p className="mx-auto max-w-sm text-slate-600">
-          Az új pozíció rögzítésre került a rendszerben. Átirányítás az állások
-          oldalára...
+          Átirányítás az állások oldalára...
         </p>
       </div>
     );
   }
 
   const fbPreviewText = generateFacebookPost(formData);
+  const customQuestion = questions.find((question) => question.id === "custom_1");
 
   return (
     <form onSubmit={handleSubmit} className="space-y-10">
       <div>
-        <SectionTitle
-          title="Alapadatok"
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" x2="8" y1="13" y2="13" />
-              <line x1="16" x2="8" y1="17" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
-          }
-        />
+        <SectionTitle title="Alapadatok" icon="📄" />
 
         <div className="grid grid-cols-1 gap-6">
           <div className="space-y-2">
@@ -366,7 +431,7 @@ export default function NewJobForm({
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">
-                URL azonosító (Slug) <span className="text-red-500">*</span>
+                URL azonosító / Slug <span className="text-red-500">*</span>
               </label>
               <Input
                 required
@@ -414,30 +479,13 @@ export default function NewJobForm({
       </div>
 
       <div>
-        <SectionTitle
-          title="Pozíció részletek"
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 16v-4" />
-              <path d="M12 8h.01" />
-            </svg>
-          }
-        />
+        <SectionTitle title="Pozíció részletek" icon="ℹ️" />
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Munkatípus</label>
+            <label className="text-sm font-medium text-slate-700">
+              Munkatípus
+            </label>
             <Select name="jobType" value={formData.jobType} onChange={handleChange}>
               <option value="">Válasszon...</option>
               <option value="Szellemi">Szellemi</option>
@@ -447,7 +495,9 @@ export default function NewJobForm({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Foglalkoztatás</label>
+            <label className="text-sm font-medium text-slate-700">
+              Foglalkoztatás
+            </label>
             <Select
               name="employmentType"
               value={formData.employmentType}
@@ -483,28 +533,7 @@ export default function NewJobForm({
       </div>
 
       <div>
-        <SectionTitle
-          title="Hirdetés szövegezése"
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-              <polyline points="14 2 14 8 20 8" />
-              <path d="M16 13H8" />
-              <path d="M16 17H8" />
-              <path d="M10 9H8" />
-            </svg>
-          }
-        />
+        <SectionTitle title="Hirdetés szövegezése" icon="✍️" />
 
         <div className="space-y-6">
           <div className="space-y-2">
@@ -537,7 +566,9 @@ export default function NewJobForm({
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Elvárások</label>
+              <label className="text-sm font-medium text-slate-700">
+                Elvárások
+              </label>
               <TextArea
                 name="requirements"
                 value={formData.requirements}
@@ -562,7 +593,9 @@ export default function NewJobForm({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Gomb (CTA) szövege</label>
+            <label className="text-sm font-medium text-slate-700">
+              Gomb szövege
+            </label>
             <Input
               name="ctaText"
               value={formData.ctaText}
@@ -573,13 +606,163 @@ export default function NewJobForm({
         </div>
       </div>
 
+      <div>
+        <SectionTitle title="Jelentkezési űrlap kérdései" icon="✅" />
+
+        <div className="rounded-[28px] border border-sky-100 bg-sky-50/60 p-5">
+          <div className="mb-5">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Előszűrő kérdések
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Maximum 2 gyakori kérdést választhatsz, plusz 1 egyedi kérdést
+              adhatsz hozzá.
+            </p>
+
+            <div className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">
+              Kiválasztva: {selectedPresetCount}/2 gyakori kérdés
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {PRESET_APPLICATION_QUESTIONS.map((question) => {
+              const selected = questions.some((item) => item.id === question.id);
+              const disabled = !selected && selectedPresetCount >= 2;
+
+              return (
+                <label
+                  key={question.id}
+                  className={[
+                    "flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition",
+                    selected
+                      ? "border-sky-300 bg-white text-slate-900 shadow-sm"
+                      : "border-slate-200 bg-white/70 text-slate-600 hover:border-sky-200",
+                    disabled ? "cursor-not-allowed opacity-50" : "",
+                  ].join(" ")}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      togglePresetQuestion(question, e.target.checked)
+                    }
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                  />
+
+                  <div>
+                    <div className="text-sm font-semibold">{question.label}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Típus:{" "}
+                      {question.type === "yes_no"
+                        ? "Igen / Nem"
+                        : question.type === "single_choice"
+                          ? "Választós"
+                          : "Szöveges"}
+                    </div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+            <h4 className="text-sm font-semibold text-slate-900">
+              Egyedi kérdés
+            </h4>
+
+            {customQuestion ? (
+              <div className="mt-4 space-y-4">
+                <Input
+                  name="customQuestionLabel"
+                  value={customQuestion.label}
+                  onChange={(e) =>
+                    updateCustomQuestion({ label: e.target.value })
+                  }
+                  placeholder="pl. Melyik műszakot tudod vállalni?"
+                />
+
+                <Select
+                  name="customQuestionType"
+                  value={customQuestion.type}
+                  onChange={(e) => {
+                    const nextType = e.target.value as ApplicationQuestionType;
+
+                    updateCustomQuestion({
+                      type: nextType,
+                      options:
+                        nextType === "single_choice"
+                          ? customQuestion.options?.length
+                            ? customQuestion.options
+                            : ["Opció 1", "Opció 2"]
+                          : nextType === "yes_no"
+                            ? ["Igen", "Nem"]
+                            : undefined,
+                    });
+                  }}
+                >
+                  <option value="text">Szöveges válasz</option>
+                  <option value="yes_no">Igen / Nem</option>
+                  <option value="single_choice">Választós kérdés</option>
+                </Select>
+
+                {customQuestion.type === "single_choice" && (
+                  <Input
+                    name="customQuestionOptions"
+                    value={(customQuestion.options || []).join(", ")}
+                    onChange={(e) => {
+                      const options = e.target.value
+                        .split(",")
+                        .map((item) => item.trim())
+                        .filter(Boolean);
+
+                      updateCustomQuestion({ options });
+                    }}
+                    placeholder="Opciók vesszővel elválasztva"
+                  />
+                )}
+
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={customQuestion.required}
+                    onChange={(e) =>
+                      updateCustomQuestion({ required: e.target.checked })
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  Kötelező kérdés
+                </label>
+
+                <button
+                  type="button"
+                  onClick={removeCustomQuestion}
+                  className="text-sm font-semibold text-red-600 hover:text-red-700"
+                >
+                  Egyedi kérdés törlése
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={addCustomQuestion}
+                className="mt-4 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-600"
+              >
+                + Egyedi kérdés hozzáadása
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-[28px] border border-sky-100 bg-sky-50/70 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">AI képgenerálás</h3>
+            <h3 className="text-lg font-semibold text-slate-900">
+              AI képgenerálás
+            </h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              A kép a pozíció, helyszín és bér mezők alapján készül. Az ügyfél ezt
-              már feltöltéskor láthatja.
+              A kép a pozíció, helyszín és bér mezők alapján készül.
             </p>
           </div>
 
@@ -620,25 +803,7 @@ export default function NewJobForm({
       </div>
 
       <div>
-        <SectionTitle
-          title="Kampány előkészítése"
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" />
-            </svg>
-          }
-        />
+        <SectionTitle title="Kampány előkészítése" icon="🚀" />
 
         <p className="mb-6 text-sm text-slate-600">
           A kampány szövegezése automatikusan frissül a fenti adatok alapján.
@@ -647,7 +812,11 @@ export default function NewJobForm({
         <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Platform</label>
-            <Select name="platform" value={formData.platform} onChange={handleChange}>
+            <Select
+              name="platform"
+              value={formData.platform}
+              onChange={handleChange}
+            >
               <option value="facebook">Facebook & Instagram</option>
               <option value="google">Google Ads</option>
               <option value="both">Mindkettő</option>
@@ -656,7 +825,7 @@ export default function NewJobForm({
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">
-              Költségkeret / nap (Ft)
+              Költségkeret / nap
             </label>
             <Input
               name="budget"
@@ -680,7 +849,9 @@ export default function NewJobForm({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Kampánycél</label>
+            <label className="text-sm font-medium text-slate-700">
+              Kampánycél
+            </label>
             <Input
               name="objective"
               value={formData.objective}
@@ -691,31 +862,13 @@ export default function NewJobForm({
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-sky-600"
-            >
-              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-            </svg>
+          <h3 className="mb-3 text-sm font-medium text-slate-700">
             Automatikusan generált Facebook poszt szöveg
           </h3>
 
           <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-4 font-mono text-xs leading-relaxed text-slate-600 shadow-sm md:text-sm">
             {fbPreviewText}
           </div>
-
-          <p className="mt-2 text-right text-xs text-slate-500">
-            A szöveg a fenti adatok alapján élőben frissül.
-          </p>
         </div>
       </div>
 
@@ -739,49 +892,11 @@ export default function NewJobForm({
           disabled={isSubmitting}
           className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-8 py-3 font-semibold text-white transition hover:bg-sky-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isSubmitting ? (
-            <>
-              <svg
-                className="-ml-1 mr-2 h-5 w-5 animate-spin text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647Z"
-                />
-              </svg>
-              Mentés folyamatban...
-            </>
-          ) : (
-            <>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14" />
-                <path d="M12 5v14" />
-              </svg>
-              {jobId ? "Állás módosítása" : "Mentés & Kampány Indítása"}
-            </>
-          )}
+          {isSubmitting
+            ? "Mentés folyamatban..."
+            : jobId
+              ? "Állás módosítása"
+              : "Mentés & Kampány Indítása"}
         </button>
       </div>
     </form>
