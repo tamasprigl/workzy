@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     const safeJobSlug = escapeAirtableValue(jobSlug);
 
     let finalJobId = jobId;
-    let applicationQuestions = [];
+    let applicationQuestions: any[] = [];
 
     if (!finalJobId) {
       const jobRecords = await base(jobsTableName)
