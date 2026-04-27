@@ -22,6 +22,6 @@ export type JobFormData = {
   objective: string;
   facebookPostText?: string;
 
-  // 🔥 ÚJ
-  applicationQuestions: ApplicationQuestion[];
+  // ✅ JAVÍTOTT (nem kötelező)
+  applicationQuestions?: ApplicationQuestion[];
 };
