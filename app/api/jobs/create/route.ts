@@ -14,8 +14,6 @@ const airtableBaseId = process.env.AIRTABLE_BASE_ID;
 const jobsTableName = process.env.AIRTABLE_JOBS_TABLE_NAME || "Jobs";
 const employersTableName =
   process.env.AIRTABLE_EMPLOYERS_TABLE_NAME || "Employers";
-const companiesTableName =
-  process.env.AIRTABLE_COMPANIES_TABLE_NAME || "Companies";
 const magicLinksTableName =
   process.env.AIRTABLE_MAGIC_LINKS_TABLE_NAME || "MagicLinks";
 
@@ -36,10 +34,12 @@ function getText(value: unknown): string {
   return "";
 }
 
-function createSlug(title: string, location?: string) {
-  const raw = `${title}-${location || ""}`;
+function escapeAirtableFormulaValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
 
-  return raw
+function createSlug(title: string, location?: string): string {
+  return `${title}-${location || ""}`
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -50,11 +50,11 @@ function createSlug(title: string, location?: string) {
     .slice(0, 80);
 }
 
-function createMagicToken() {
+function createMagicToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-function createExpiryDate() {
+function createExpiryDate(): string {
   return new Date(Date.now() + 15 * 60 * 1000).toISOString();
 }
 
@@ -69,53 +69,23 @@ async function getCurrentEmployer() {
   const email =
     typeof payload?.email === "string" ? payload.email.trim().toLowerCase() : "";
 
-  const employerId =
-    typeof payload?.employerId === "string"
-      ? payload.employerId
-      : typeof payload?.userId === "string"
-        ? payload.userId
-        : typeof payload?.sub === "string"
-          ? payload.sub
-          : "";
-
-  if (employerId) {
-    try {
-      const employer = await base(employersTableName).find(employerId);
-
-      return {
-        id: employer.id,
-        email:
-          getText(employer.get("Email")) ||
-          getText(employer.get("E-mail")) ||
-          email,
-        company: Array.isArray(employer.get("Company"))
-          ? (employer.get("Company") as string[])
-          : [],
-      };
-    } catch {
-      // fallback email keresésre
-    }
-  }
-
   if (!email) return null;
+
+  const safeEmail = escapeAirtableFormulaValue(email);
 
   const employers = await base(employersTableName)
     .select({
       maxRecords: 1,
-      filterByFormula: `LOWER({Email}) = '${email.replace(/'/g, "\\'")}'`,
+      filterByFormula: `LOWER({Email}) = "${safeEmail}"`,
     })
     .firstPage();
 
   const employer = employers[0];
-
   if (!employer) return null;
 
   return {
     id: employer.id,
     email: getText(employer.get("Email")) || email,
-    company: Array.isArray(employer.get("Company"))
-      ? (employer.get("Company") as string[])
-      : [],
   };
 }
 
@@ -131,17 +101,13 @@ async function createAndSendMagicLink({
   const token = createMagicToken();
   const expiresAt = createExpiryDate();
 
-  await base(magicLinksTableName).create([
-    {
-      fields: {
-        Token: token,
-        Email: email,
-        Purpose: "job_activation",
-        "Expires At": expiresAt,
-        JobId: jobId,
-      },
-    },
-  ]);
+  await base(magicLinksTableName).create({
+    Token: token,
+    Email: email,
+    Purpose: "job_activation",
+    "Expires At": expiresAt,
+    JobId: jobId,
+  } as any);
 
   const magicLink = `${appUrl}/api/auth/magic-link?token=${token}`;
 
@@ -157,25 +123,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const title = getText(body.title || body.Title);
-    const companyName = getText(body.company || body.companyName || body.Company);
+    const companyName = getText(body.company || body.Company);
     const location = getText(body.location || body.Location);
-    const type = getText(body.type || body.jobType || body.Type);
-    const employmentType = getText(body.employmentType || body["Employment Type"]);
-    const schedule = getText(body.schedule || body.shift || body.Schedule);
-    const salary = getText(body.salary || body.Salary);
-    const shortDescription = getText(
-      body.shortDescription || body["Short Description"]
-    );
-    const description = getText(
-      body.description || body.fullDescription || body.Description
-    );
-    const requirements = getText(body.requirements || body.Requirements);
-    const benefits = getText(body.benefits || body.Benefits);
-    const ctaText = getText(body.ctaText || body["CTA Text"]) || "Jelentkezem";
 
     if (!title) {
       return NextResponse.json(
-        { success: false, error: "A pozíció megadása kötelező." },
+        { success: false, error: "A pozíció kötelező." },
         { status: 400 }
       );
     }
@@ -184,67 +137,46 @@ export async function POST(request: NextRequest) {
 
     if (!currentEmployer) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Nem található bejelentkezett employer/user.",
-        },
+        { success: false, error: "Nincs bejelentkezett user." },
         { status: 401 }
       );
     }
 
     const slug = createSlug(title, location);
 
-    const fields: Record<string, unknown> = {
+    const fields = {
       Title: title,
       Slug: slug,
       Status: "Aktív",
-
       Company: companyName,
       Location: location,
-      Type: type,
-      "Employment Type": employmentType,
-      Schedule: schedule,
-      Salary: salary,
-      "Short Description": shortDescription,
-      Description: description,
-      Requirements: requirements,
-      Benefits: benefits,
-      "CTA Text": ctaText,
-
       User: currentEmployer.email,
       Owner: currentEmployer.email,
     };
 
-    const createdJob = await base(jobsTableName).create([{ fields }]);
-    const jobId = createdJob[0].id;
+    // 🔥 EZ A LÉNYEG - FIX
+    const createdRecords = await base(jobsTableName).create([
+      { fields },
+    ] as any);
 
-    try {
-      await createAndSendMagicLink({
-        email: currentEmployer.email,
-        jobId,
-        jobTitle: title,
-      });
-    } catch (emailError) {
-      console.error("Magic link email hiba:", emailError);
-    }
+    const jobId = createdRecords[0].id;
+
+    await createAndSendMagicLink({
+      email: currentEmployer.email,
+      jobId,
+      jobTitle: title,
+    });
 
     return NextResponse.json({
       success: true,
       jobId,
       slug,
-      employerId: currentEmployer.id,
-      employerEmail: currentEmployer.email,
-      magicLinkEmailSent: true,
     });
   } catch (error) {
-    console.error("Job create error:", error);
+    console.error(error);
 
     return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Ismeretlen hiba történt.",
-      },
+      { success: false, error: "Hiba történt." },
       { status: 500 }
     );
   }
