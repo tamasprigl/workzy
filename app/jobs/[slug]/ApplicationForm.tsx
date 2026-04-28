@@ -15,6 +15,7 @@ type FormState = {
   email: string;
   phone: string;
   city: string;
+  cv: string;
   message: string;
 };
 
@@ -23,6 +24,7 @@ const initialFormState: FormState = {
   email: "",
   phone: "",
   city: "",
+  cv: "",
   message: "",
 };
 
@@ -34,8 +36,6 @@ export default function ApplicationForm({
 }: ApplicationFormProps) {
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [cvFile, setCvFile] = useState<File | null>(null);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -64,13 +64,6 @@ export default function ApplicationForm({
     setSuccessMessage("");
     setErrorMessage("");
 
-    // 🔥 CV kötelező
-    if (!cvFile) {
-      setErrorMessage("A CV feltöltése kötelező.");
-      setIsSubmitting(false);
-      return;
-    }
-
     const formattedAnswers = questions.map((question) => ({
       questionId: question.id,
       question: question.label,
@@ -78,24 +71,23 @@ export default function ApplicationForm({
     }));
 
     try {
-      const form = new FormData();
-
-      form.append("jobId", jobId);
-      form.append("jobSlug", jobSlug);
-      form.append("jobTitle", jobTitle);
-
-      form.append("fullName", formData.fullName.trim());
-      form.append("email", formData.email.trim());
-      form.append("phone", formData.phone.trim());
-      form.append("city", formData.city.trim());
-      form.append("message", formData.message.trim());
-
-      form.append("cv", cvFile);
-      form.append("answers", JSON.stringify(formattedAnswers));
-
       const response = await fetch("/api/applications", {
         method: "POST",
-        body: form,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobId,
+          jobSlug,
+          jobTitle,
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          city: formData.city.trim(),
+          cv: formData.cv.trim(),
+          message: formData.message.trim(),
+          answers: formattedAnswers,
+        }),
       });
 
       const result = await response.json().catch(() => null);
@@ -104,22 +96,20 @@ export default function ApplicationForm({
         throw new Error(
           result?.message ||
             result?.error ||
-            "A jelentkezés küldése nem sikerült."
+            "A jelentkezés küldése nem sikerült. Kérlek, próbáld újra."
         );
       }
 
       setSuccessMessage(
         "A jelentkezés sikeresen elküldve. Hamarosan felvesszük veled a kapcsolatot."
       );
-
       setFormData(initialFormState);
       setAnswers({});
-      setCvFile(null);
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "Valami hiba történt.";
+          : "Valami hiba történt. Kérlek, próbáld újra.";
 
       setErrorMessage(message);
     } finally {
@@ -140,35 +130,215 @@ export default function ApplicationForm({
       </div>
 
       <div className="space-y-6">
+        <div>
+          <label
+            htmlFor="fullName"
+            className="mb-2 block text-sm font-medium text-slate-600"
+          >
+            Teljes név *
+          </label>
+          <input
+            id="fullName"
+            name="fullName"
+            type="text"
+            required
+            autoComplete="name"
+            value={formData.fullName}
+            onChange={(e) => updateField("fullName", e.target.value)}
+            placeholder="Kovács János"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          />
+        </div>
 
-        {/* --- MEZŐK változatlanul --- */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div>
+            <label
+              htmlFor="email"
+              className="mb-2 block text-sm font-medium text-slate-600"
+            >
+              E-mail cím *
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              inputMode="email"
+              required
+              autoComplete="email"
+              value={formData.email}
+              onChange={(e) => updateField("email", e.target.value)}
+              placeholder="pelda@email.hu"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            />
+          </div>
 
-        {/* 🔥 CV RÉSZ JAVÍTVA */}
+          <div>
+            <label
+              htmlFor="phone"
+              className="mb-2 block text-sm font-medium text-slate-600"
+            >
+              Telefonszám *
+            </label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              required
+              autoComplete="tel"
+              value={formData.phone}
+              onChange={(e) => updateField("phone", e.target.value)}
+              placeholder="+36 30 123 4567"
+              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="city"
+            className="mb-2 block text-sm font-medium text-slate-600"
+          >
+            Honnan jelentkezel? / Lakhely *
+          </label>
+          <input
+            id="city"
+            name="city"
+            type="text"
+            required
+            autoComplete="address-level2"
+            value={formData.city}
+            onChange={(e) => updateField("city", e.target.value)}
+            placeholder="pl. Győr, Vaja, Kecskemét"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          />
+        </div>
+
         <div>
           <label
             htmlFor="cv"
             className="mb-2 block text-sm font-medium text-slate-600"
           >
-            CV feltöltése *
+            CV / önéletrajz link
           </label>
-
           <input
             id="cv"
-            type="file"
-            required
-            accept=".pdf,.doc,.docx"
-            onChange={(e) =>
-              setCvFile(e.target.files?.[0] || null)
-            }
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"
+            name="cv"
+            type="url"
+            value={formData.cv}
+            onChange={(e) => updateField("cv", e.target.value)}
+            placeholder="pl. Google Drive / Dropbox link"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
           />
-
-          <p className="mt-2 text-xs text-slate-500">
-            PDF, DOC vagy DOCX formátum.
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Ha nincs kéznél önéletrajzod, ezt a mezőt egyelőre üresen hagyhatod.
           </p>
         </div>
 
-        {/* --- questions + message + UI marad --- */}
+        {questions.length > 0 && (
+          <div className="rounded-[24px] border border-sky-100 bg-sky-50/40 p-5 md:p-6">
+            <div className="mb-5">
+              <h3 className="text-lg font-bold text-slate-900">
+                Előszűrő kérdések
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Ezek a kérdések segítenek gyorsabban feldolgozni a jelentkezésedet.
+              </p>
+            </div>
+
+            <div className="space-y-5">
+              {questions.map((question) => (
+                <div key={question.id}>
+                  <label
+                    htmlFor={question.id}
+                    className="mb-2 block text-sm font-medium text-slate-700"
+                  >
+                    {question.label} {question.required ? "*" : ""}
+                  </label>
+
+                  {question.type === "text" && (
+                    <input
+                      id={question.id}
+                      type="text"
+                      required={question.required}
+                      value={answers[question.id] || ""}
+                      onChange={(e) =>
+                        updateAnswer(question.id, e.target.value)
+                      }
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                    />
+                  )}
+
+                  {question.type === "yes_no" && (
+                    <div className="flex flex-wrap gap-3">
+                      {["Igen", "Nem"].map((option) => (
+                        <label
+                          key={option}
+                          className={[
+                            "flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition",
+                            answers[question.id] === option
+                              ? "border-sky-300 bg-sky-100 text-sky-800"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-sky-200",
+                          ].join(" ")}
+                        >
+                          <input
+                            type="radio"
+                            name={question.id}
+                            value={option}
+                            required={question.required}
+                            checked={answers[question.id] === option}
+                            onChange={(e) =>
+                              updateAnswer(question.id, e.target.value)
+                            }
+                            className="h-4 w-4"
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {question.type === "single_choice" && (
+                    <select
+                      id={question.id}
+                      required={question.required}
+                      value={answers[question.id] || ""}
+                      onChange={(e) =>
+                        updateAnswer(question.id, e.target.value)
+                      }
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                    >
+                      <option value="">Válassz...</option>
+                      {(question.options || []).map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label
+            htmlFor="message"
+            className="mb-2 block text-sm font-medium text-slate-600"
+          >
+            Üzenet (opcionális)
+          </label>
+          <textarea
+            id="message"
+            name="message"
+            rows={6}
+            value={formData.message}
+            onChange={(e) => updateField("message", e.target.value)}
+            placeholder="Írhatsz pár szót magadról, tapasztalatodról vagy arról, mikor tudsz kezdeni."
+            className="min-h-[160px] w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          />
+        </div>
 
         {(successMessage || errorMessage) && (
           <div
@@ -183,13 +353,20 @@ export default function ApplicationForm({
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-xl bg-slate-900 px-6 py-4 text-sm font-semibold text-white"
-        >
-          {isSubmitting ? "Küldés..." : "Jelentkezés elküldése"}
-        </button>
+        <div className="flex flex-col gap-6 pt-4">
+          <p className="text-sm leading-6 text-slate-500">
+            A jelentkezés elküldésével hozzájárulsz ahhoz, hogy az adataid a
+            kiválasztási folyamatban felhasználásra kerüljenek.
+          </p>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full rounded-xl bg-slate-900 px-6 py-4 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:min-w-[240px]"
+          >
+            {isSubmitting ? "Küldés folyamatban..." : "Jelentkezés elküldése"}
+          </button>
+        </div>
       </div>
     </form>
   );
