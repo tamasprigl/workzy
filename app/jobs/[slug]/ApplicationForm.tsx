@@ -15,7 +15,7 @@ type FormState = {
   email: string;
   phone: string;
   city: string;
-  cv: string;
+  cv: File | null;
   message: string;
 };
 
@@ -24,7 +24,7 @@ const initialFormState: FormState = {
   email: "",
   phone: "",
   city: "",
-  cv: "",
+  cv: null,
   message: "",
 };
 
@@ -71,23 +71,24 @@ export default function ApplicationForm({
     }));
 
     try {
+      const formDataToSend = new FormData();
+      formDataToSend.append("jobId", jobId);
+      formDataToSend.append("jobSlug", jobSlug);
+      formDataToSend.append("jobTitle", jobTitle);
+      formDataToSend.append("fullName", formData.fullName.trim());
+      formDataToSend.append("email", formData.email.trim());
+      formDataToSend.append("phone", formData.phone.trim());
+      formDataToSend.append("city", formData.city.trim());
+      formDataToSend.append("message", formData.message.trim());
+      formDataToSend.append("answers", JSON.stringify(formattedAnswers));
+      
+      if (formData.cv) {
+        formDataToSend.append("cv", formData.cv);
+      }
+
       const response = await fetch("/api/applications", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jobId,
-          jobSlug,
-          jobTitle,
-          fullName: formData.fullName.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim(),
-          city: formData.city.trim(),
-          cv: formData.cv.trim(),
-          message: formData.message.trim(),
-          answers: formattedAnswers,
-        }),
+        body: formDataToSend,
       });
 
       const result = await response.json().catch(() => null);
@@ -230,9 +231,9 @@ export default function ApplicationForm({
             onChange={(e) =>
               updateField(
                 "cv",
-                e.target.files && e.target.files[0]
-                  ? e.target.files[0].name
-                  : ""
+                e.target.files && e.target.files.length > 0
+                  ? e.target.files[0]
+                  : null
               )
             }
             className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"

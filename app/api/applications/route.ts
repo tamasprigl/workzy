@@ -5,6 +5,7 @@ import {
   safeParseApplicationQuestions,
   validateApplicationAnswers,
 } from "@/lib/applicationQuestions";
+import { put } from "@vercel/blob";
 
 export const dynamic = "force-dynamic";
 
@@ -22,21 +23,32 @@ function normalizeString(value: unknown): string {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    console.log("APPLICATION POST BODY:", body);
+    const formData = await request.formData();
+    console.log("APPLICATION POST FORMDATA keys:", Array.from(formData.keys()));
 
-    const jobId = normalizeString(body.jobId);
-    const jobSlug = normalizeString(body.jobSlug);
-    const jobTitle = normalizeString(body.jobTitle);
-    const fullName = normalizeString(body.fullName || body.name);
-    const email = normalizeString(body.email);
-    const phone = normalizeString(body.phone);
-    const city = normalizeString(body.city);
-    const cv = normalizeString(body.cv);
-    const message = normalizeString(body.message);
+    const jobId = normalizeString(formData.get("jobId"));
+    const jobSlug = normalizeString(formData.get("jobSlug"));
+    const jobTitle = normalizeString(formData.get("jobTitle"));
+    const fullName = normalizeString(formData.get("fullName") || formData.get("name"));
+    const email = normalizeString(formData.get("email"));
+    const phone = normalizeString(formData.get("phone"));
+    const city = normalizeString(formData.get("city"));
+    const message = normalizeString(formData.get("message"));
 
-    const answers: ApplicationAnswer[] = Array.isArray(body.answers)
-      ? body.answers.map((answer: any) => ({
+    const cvFile = formData.get("cv") as File | null;
+
+    let parsedAnswers: any = [];
+    try {
+      const answersStr = formData.get("answers");
+      if (answersStr && typeof answersStr === "string") {
+        parsedAnswers = JSON.parse(answersStr);
+      }
+    } catch (e) {
+      console.warn("Failed to parse answers JSON");
+    }
+
+    const answers: ApplicationAnswer[] = Array.isArray(parsedAnswers)
+      ? parsedAnswers.map((answer: any) => ({
           questionId: normalizeString(answer.questionId),
           question: normalizeString(answer.question),
           answer: normalizeString(answer.answer),
@@ -60,6 +72,49 @@ export async function POST(request: Request) {
           error: "Missing required fields",
           missing,
           message: "A kötelező mezők hiányoznak.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!cvFile || cvFile.size === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          ok: false,
+          error: "Missing CV file",
+          missing: ["cv"],
+          message: "Az önéletrajz feltöltése kötelező.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (cvFile.size > 5 * 1024 * 1024) {
+      return NextResponse.json(
+        {
+          success: false,
+          ok: false,
+          error: "File too large",
+          message: "Az önéletrajz mérete nem haladhatja meg az 5MB-ot.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const validTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+
+    if (!validTypes.includes(cvFile.type) && !cvFile.name.match(/\.(pdf|doc|docx)$/i)) {
+      return NextResponse.json(
+        {
+          success: false,
+          ok: false,
+          error: "Invalid file type",
+          message: "Kérlek PDF vagy Word formátumban töltsd fel az önéletrajzod.",
         },
         { status: 400 }
       );
@@ -132,6 +187,41 @@ export async function POST(request: Request) {
       );
     }
 
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+
+    if (!blobToken) {
+      console.error("Vercel Blob token is missing");
+      return NextResponse.json(
+        {
+          success: false,
+          ok: false,
+          error: "Vercel Blob token is missing",
+          message: "Rendszerhiba: hiányzó feltöltési konfiguráció.",
+        },
+        { status: 500 }
+      );
+    }
+
+    let cvUrl = "";
+    try {
+      const safeFilename = cvFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const blob = await put(`cvs/${Date.now()}-${safeFilename}`, cvFile, {
+        access: "public",
+      });
+      cvUrl = blob.url;
+    } catch (error) {
+      console.error("Vercel Blob upload error:", error);
+      return NextResponse.json(
+        {
+          success: false,
+          ok: false,
+          error: error instanceof Error ? error.message : "Unknown upload error",
+          message: "Hiba történt az önéletrajz feltöltése során.",
+        },
+        { status: 500 }
+      );
+    }
+
     const visibleApplications = await base(applicationsTableName)
       .select({
         filterByFormula: `AND({Job Slug} = "${safeJobSlug}", {Access} = "Visible")`,
@@ -149,7 +239,14 @@ export async function POST(request: Request) {
       Phone: phone,
       City: city,
       Message: message,
-      CV: cv,
+      CV: cvUrl
+        ? [
+            {
+              url: cvUrl,
+              filename: cvFile.name,
+            },
+          ]
+        : [],
       Status: "Új",
       Access: access,
       Answers: JSON.stringify(answers),
@@ -178,6 +275,7 @@ export async function POST(request: Request) {
         access === "Locked"
           ? "A jelentkezés sikeresen beérkezett, de ez a jelentkező már a fizetős csomaghoz tartozó zárolt jelentkezések közé került."
           : "A jelentkezés sikeresen beérkezett.",
+      cvUrl,
     });
   } catch (error) {
     console.error("Hiba jelentkezés leadásakor:", error);
