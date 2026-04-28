@@ -5,15 +5,23 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyAuthToken } from "@/lib/auth";
 
-const airtableToken = process.env.AIRTABLE_TOKEN;
-const airtableBaseId = process.env.AIRTABLE_BASE_ID;
-
 const usersTableName = process.env.AIRTABLE_USERS_TABLE_NAME || "Users";
 const employersTableName =
   process.env.AIRTABLE_EMPLOYERS_TABLE_NAME || "Employers";
 const companiesTableName =
   process.env.AIRTABLE_COMPANIES_TABLE_NAME || "Companies";
 const jobsTableName = process.env.AIRTABLE_JOBS_TABLE_NAME || "Jobs";
+
+function getBase() {
+  const token = process.env.AIRTABLE_TOKEN;
+  const baseId = process.env.AIRTABLE_BASE_ID;
+
+  if (!token || !baseId) {
+    throw new Error("Missing Airtable configuration");
+  }
+
+  return new Airtable({ apiKey: token }).base(baseId);
+}
 
 function getText(value: unknown): string {
   if (typeof value === "string") return value.trim();
@@ -34,136 +42,37 @@ function getLinkedIds(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function getBase() {
-  if (!airtableToken || !airtableBaseId) {
-    throw new Error("Missing Airtable configuration");
-  }
-
-  return new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
-}
-
-function getSessionData(session: unknown): {
-  email: string;
-  recordId: string;
-} {
-  if (!session || typeof session !== "object") {
-    return { email: "", recordId: "" };
-  }
-
-  const data = session as Record<string, unknown>;
-
-  const rawEmail =
-    getText(data.email) ||
-    getText(data.username) ||
-    getText(data.userEmail);
-
-  const rawRecordId =
-    getText(data.id) ||
-    getText(data.recordId) ||
-    getText(data.employerId) ||
-    getText(data.userId) ||
-    getText(data.sub);
-
-  return {
-    email: rawEmail.includes("@") ? rawEmail.toLowerCase().trim() : "",
-    recordId: rawRecordId.startsWith("rec") ? rawRecordId.trim() : "",
-  };
-}
-
-async function findEmailFromTable(
-  base: Airtable.Base,
-  tableName: string,
-  recordId: string
-): Promise<string> {
-  try {
-    const record = await base(tableName).find(recordId);
-
-    return (
-      getText(record.get("Email")) ||
-      getText(record.get("E-mail")) ||
-      getText(record.get("Email Address")) ||
-      getText(record.get("User")) ||
-      getText(record.get("Owner"))
-    )
-      .toLowerCase()
-      .trim();
-  } catch {
-    return "";
-  }
-}
-
-async function resolveSessionEmail(): Promise<string> {
+async function getSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get("admin_session")?.value;
 
-  if (!token) return "";
+  if (!token) return null;
 
-  try {
-    const session = await verifyAuthToken(token);
-    const sessionData = getSessionData(session);
-
-    if (sessionData.email) {
-      return sessionData.email;
-    }
-
-    if (!sessionData.recordId) {
-      console.log("Invalid onboarding session payload:", session);
-      return "";
-    }
-
-    const base = getBase();
-
-    const emailFromUsers = await findEmailFromTable(
-      base,
-      usersTableName,
-      sessionData.recordId
-    );
-
-    if (emailFromUsers) {
-      return emailFromUsers;
-    }
-
-    const emailFromEmployers = await findEmailFromTable(
-      base,
-      employersTableName,
-      sessionData.recordId
-    );
-
-    return emailFromEmployers;
-  } catch (error) {
-    console.error("Failed to resolve session email:", error);
-    return "";
-  }
+  return verifyAuthToken(token);
 }
 
-async function resolveSessionEmailWithDevFallback(): Promise<string> {
-  const email = await resolveSessionEmail();
+async function getSessionEmail(): Promise<string> {
+  const session = await getSession();
 
-  if (email) {
-    return email;
-  }
+  const email =
+    getText(session?.email) ||
+    getText(session?.username) ||
+    getText(session?.userEmail);
 
-  if (process.env.NODE_ENV === "development") {
-    console.log("Onboarding email resolve failed. Using dev fallback.");
-    return "tamas.prigl@gmail.com";
-  }
-
-  return "";
+  return email.includes("@") ? email.toLowerCase().trim() : "";
 }
 
 async function findOrCreateEmployer(base: Airtable.Base, email: string) {
   const normalizedEmail = email.toLowerCase().trim();
 
-  const employers = await base(employersTableName)
+  const records = await base(employersTableName)
     .select({
       maxRecords: 1,
       filterByFormula: `LOWER({Email}) = '${escapeAirtable(normalizedEmail)}'`,
     })
     .firstPage();
 
-  if (employers[0]) {
-    return employers[0];
-  }
+  if (records[0]) return records[0];
 
   const created = await base(employersTableName).create([
     {
@@ -176,8 +85,67 @@ async function findOrCreateEmployer(base: Airtable.Base, email: string) {
   return created[0];
 }
 
+async function findUserByEmail(base: Airtable.Base, email: string) {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const records = await base(usersTableName)
+    .select({
+      maxRecords: 1,
+      filterByFormula: `LOWER({email}) = '${escapeAirtable(normalizedEmail)}'`,
+    })
+    .firstPage();
+
+  return records[0] || null;
+}
+
+async function createOrUpdateCompany({
+  base,
+  employer,
+  name,
+  website,
+  description,
+}: {
+  base: Airtable.Base;
+  employer: any;
+  name: string;
+  website: string;
+  description: string;
+}) {
+  const existingCompanyIds = getLinkedIds(employer.get("Company"));
+
+  const companyFields: Airtable.FieldSet = {
+    Name: name,
+    "Profile Complete": true,
+  };
+
+  if (website) companyFields.Website = website;
+  if (description) companyFields.Description = description;
+
+  if (existingCompanyIds.length > 0) {
+    const companyId = existingCompanyIds[0];
+
+    await base(companiesTableName).update(companyId, companyFields);
+
+    return companyId;
+  }
+
+  const created = await base(companiesTableName).create([
+    {
+      fields: companyFields,
+    },
+  ]);
+
+  const companyId = created[0].id;
+
+  await base(employersTableName).update(employer.id, {
+    Company: [companyId],
+  });
+
+  return companyId;
+}
+
 export async function checkOnboardingStatus() {
-  const email = await resolveSessionEmailWithDevFallback();
+  const email = await getSessionEmail();
 
   if (!email) {
     return { isComplete: false };
@@ -189,18 +157,14 @@ export async function checkOnboardingStatus() {
 
     const companyIds = getLinkedIds(employer.get("Company"));
 
-    if (companyIds.length === 0) {
+    if (!companyIds.length) {
       return { isComplete: false };
     }
 
     const company = await base(companiesTableName).find(companyIds[0]);
 
-    const isProfileComplete =
-      company.get("Profile Complete") === true ||
-      getText(company.get("Profile Complete")).toLowerCase() === "true";
-
     return {
-      isComplete: isProfileComplete,
+      isComplete: company.get("Profile Complete") === true,
     };
   } catch (error) {
     console.error("Failed to check onboarding:", error);
@@ -209,70 +173,42 @@ export async function checkOnboardingStatus() {
 }
 
 export async function submitOnboarding(formData: FormData) {
-  const email = await resolveSessionEmailWithDevFallback();
+  const email = await getSessionEmail();
 
   if (!email) {
-    throw new Error("Invalid session");
+    redirect("/admin/login");
   }
 
-  const name = getText(formData.get("name"));
+  const companyName = getText(formData.get("name"));
   const website = getText(formData.get("website"));
   const description = getText(formData.get("description"));
 
-  if (!name) {
+  if (!companyName) {
     throw new Error("Company name is required");
   }
 
   const base = getBase();
+  const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    const employer = await findOrCreateEmployer(base, email);
-    const existingCompanyIds = getLinkedIds(employer.get("Company"));
+    const employer = await findOrCreateEmployer(base, normalizedEmail);
 
-    const companyFields: Airtable.FieldSet = {
-      Name: name,
-      "Profile Complete": true,
-    };
+    const companyId = await createOrUpdateCompany({
+      base,
+      employer,
+      name: companyName,
+      website,
+      description,
+    });
 
-    if (website) {
-      companyFields.Website = website;
+    const user = await findUserByEmail(base, normalizedEmail);
+
+    if (user) {
+      await base(usersTableName).update(user.id, {
+        "Employer Record": [employer.id],
+        "Onboarding Complete": true,
+      });
     }
-
-    if (description) {
-      companyFields.Description = description;
-    }
-
-    let companyId = "";
-
-    if (existingCompanyIds.length > 0) {
-      companyId = existingCompanyIds[0];
-
-      await base(companiesTableName).update([
-        {
-          id: companyId,
-          fields: companyFields,
-        },
-      ]);
-    } else {
-      const createdCompany = await base(companiesTableName).create([
-        {
-          fields: companyFields,
-        },
-      ]);
-
-      companyId = createdCompany[0].id;
-
-      await base(employersTableName).update([
-        {
-          id: employer.id,
-          fields: {
-            Company: [companyId],
-          },
-        },
-      ]);
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
 
     const pendingJobs = await base(jobsTableName)
       .select({
@@ -289,6 +225,7 @@ export async function submitOnboarding(formData: FormData) {
       fields: {
         Owner: normalizedEmail,
         User: normalizedEmail,
+        Company: companyName,
         "Company Record": [companyId],
         Status: "Aktív",
       } as Airtable.FieldSet,
@@ -299,12 +236,7 @@ export async function submitOnboarding(formData: FormData) {
     }
   } catch (error) {
     console.error("Onboarding error full:", error);
-
-    if (error instanceof Error) {
-      throw error;
-    }
-
-    throw new Error(`Failed to save profile: ${String(error)}`);
+    throw error;
   }
 
   redirect("/admin/jobs");
