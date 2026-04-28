@@ -248,7 +248,6 @@ export default async function AdminDashboardPage() {
 
   let jobs: any[] = [];
   let errorMsg = "";
-  let debugInfo: any = null;
 
   try {
     const airtableToken = process.env.AIRTABLE_TOKEN;
@@ -265,20 +264,6 @@ export default async function AdminDashboardPage() {
       process.env.AIRTABLE_APPLICATIONS_TABLE_NAME || "Applications";
 
     const allJobRecords = await base(jobsTableName).select().all();
-
-    debugInfo = {
-      employerEmail,
-      jobsTableName,
-      totalAirtableJobs: allJobRecords.length,
-      sampleJobs: allJobRecords.slice(0, 10).map((record) => ({
-        id: record.id,
-        title: record.fields?.Title,
-        owner: record.fields?.Owner,
-        user: record.fields?.User,
-        employer: record.fields?.Employer,
-        fieldNames: Object.keys(record.fields || {}),
-      })),
-    };
 
     const selectedJobsRecords = allJobRecords.filter((record) => {
       const fields =
@@ -339,17 +324,14 @@ export default async function AdminDashboardPage() {
   }
 
   const totalJobs = jobs.length;
-
   const totalApplications = jobs.reduce(
     (acc, job) => acc + (job.applicantsCount || 0),
     0
   );
-
   const newApplications = jobs.reduce(
     (acc, job) => acc + (job.newApplicantsCount || 0),
     0
   );
-
   const activeJobs = jobs.filter((job) => isActiveStatus(job.status || "")).length;
 
   const urgentJob = jobs.find(
@@ -369,7 +351,7 @@ export default async function AdminDashboardPage() {
         <div className="absolute inset-0 bg-[radial-gradient(#0f172a_1px,transparent_1px)] opacity-[0.025] [background-size:20px_20px]" />
       </div>
 
-      <div className="mx-auto flex max-w-[1760px] flex-col gap-7 px-5 py-7 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1880px] flex-col gap-7 px-5 py-7 sm:px-6 lg:px-8">
         <section className="rounded-[30px] border border-white/80 bg-white/85 p-6 shadow-[0_16px_45px_rgba(15,23,42,0.06)] backdrop-blur-xl lg:p-7">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -450,7 +432,7 @@ export default async function AdminDashboardPage() {
               </h2>
 
               <p className="mt-1 text-sm font-semibold text-slate-600">
-                4 álláskártya egy sorban nagyobb kijelzőn, átláthatóbb adatokkal.
+                Nagy kijelzőn 4 álláskártya, kisebb kijelzőn automatikusan 2–3.
               </p>
             </div>
 
@@ -480,7 +462,7 @@ export default async function AdminDashboardPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {sortedJobs.map((job) => {
                 const thumbnail = getThumbnail(job);
                 const isZero = (job.applicantsCount || 0) === 0;
@@ -570,6 +552,14 @@ export default async function AdminDashboardPage() {
                             </p>
                           </div>
                         </div>
+
+                        {job.hiddenCount > 0 && (
+                          <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-center">
+                            <p className="text-xs font-black text-slate-900">
+                              🔒 {job.hiddenCount} elrejtve
+                            </p>
+                          </div>
+                        )}
 
                         <div className="mt-auto grid grid-cols-2 gap-2 border-t border-slate-100 pt-4">
                           <Link
