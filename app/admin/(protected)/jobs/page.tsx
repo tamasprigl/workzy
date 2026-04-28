@@ -45,8 +45,13 @@ function extractStrings(value: unknown): string[] {
 }
 
 function fieldMatches(value: unknown, targets: string[]) {
-  const haystack = extractStrings(value).map((v) => v.toLowerCase());
-  const needles = targets.map((v) => v.toLowerCase()).filter(Boolean);
+  const haystack = extractStrings(value)
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+
+  const needles = targets
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
 
   return haystack.some((item) =>
     needles.some((target) => item === target || item.includes(target))
@@ -154,12 +159,7 @@ export default async function AdminJobsPage() {
       (await getEmailFromRecord(base, employersTableName, currentRecordId));
   }
 
-  const targets = [
-    currentUserRaw,
-    currentRecordId,
-    currentEmail,
-    "tamas.prigl@gmail.com",
-  ].filter(Boolean);
+  const targets = [currentUserRaw, currentRecordId, currentEmail].filter(Boolean);
 
   try {
     const records = await base(jobsTableName).select().all();
@@ -169,8 +169,8 @@ export default async function AdminJobsPage() {
         (record as unknown as { fields?: Record<string, unknown> }).fields || {};
 
       return (
-        fieldMatches(fields.User, targets) ||
         fieldMatches(fields.Owner, targets) ||
+        fieldMatches(fields.User, targets) ||
         fieldMatches(fields.Employer, targets) ||
         fieldMatches(fields["Created By"], targets) ||
         fieldMatches(fields["Company Record"], targets) ||
