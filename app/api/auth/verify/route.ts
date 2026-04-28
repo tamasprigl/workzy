@@ -12,6 +12,8 @@ const magicLinksTableName =
   process.env.AIRTABLE_MAGIC_LINKS_TABLE_NAME || "MagicLinks";
 const employersTableName =
   process.env.AIRTABLE_EMPLOYERS_TABLE_NAME || "Employers";
+const usersTableName =
+  process.env.AIRTABLE_USERS_TABLE_NAME || "Users";
 
 if (!airtableToken || !airtableBaseId) {
   throw new Error("Missing Airtable config");
@@ -39,15 +41,38 @@ async function findOrCreateEmployer(email: string) {
     })
     .firstPage();
 
-  if (employers[0]) {
-    return employers[0];
-  }
+  if (employers[0]) return employers[0];
 
   const created = await base(employersTableName).create([
     {
       fields: {
         Email: normalizedEmail,
         Role: "employer",
+      },
+    },
+  ]);
+
+  return created[0];
+}
+
+async function findOrCreateUser(email: string, employerId: string) {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const users = await base(usersTableName)
+    .select({
+      maxRecords: 1,
+      filterByFormula: `LOWER({email}) = '${escapeAirtable(normalizedEmail)}'`,
+    })
+    .firstPage();
+
+  if (users[0]) return users[0];
+
+  const created = await base(usersTableName).create([
+    {
+      fields: {
+        email: normalizedEmail,
+        Role: "employer",
+        "Employer Record": [employerId],
       },
     },
   ]);
@@ -88,25 +113,38 @@ export async function GET(request: NextRequest) {
     }
 
     const employer = await findOrCreateEmployer(email);
+    const user = await findOrCreateUser(email, employer.id);
 
-    const role = String(employer.fields.Role || "employer").toLowerCase();
+    const role = String(user.fields.Role || "employer").toLowerCase();
+    const name = text(user.fields.Name);
+    const password = text(user.fields.Password);
 
     const authToken = await createAuthToken({
       email,
       username: email,
       userEmail: email,
-      id: employer.id,
-      recordId: employer.id,
+      id: user.id,
+      recordId: user.id,
+      userId: user.id,
       employerId: employer.id,
-      userId: employer.id,
-      sub: employer.id,
+      sub: user.id,
       role: role as any,
     });
 
-    const redirectPath =
-      purpose === "job_activation" && job[0]
-        ? `/admin/jobs/${job[0]}/edit`
-        : "/admin/jobs";
+    let redirectPath = "/admin/jobs";
+
+    if (!name || !password) {
+      const params = new URLSearchParams();
+
+      if (job[0]) params.set("jobId", job[0]);
+      if (purpose) params.set("purpose", purpose);
+
+      redirectPath = `/admin/onboarding/account${
+        params.toString() ? `?${params.toString()}` : ""
+      }`;
+    } else if (purpose === "job_activation" && job[0]) {
+      redirectPath = `/admin/jobs/${job[0]}/edit`;
+    }
 
     const response = NextResponse.redirect(new URL(redirectPath, request.url));
 
