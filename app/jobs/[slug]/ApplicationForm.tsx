@@ -219,19 +219,20 @@ export default function ApplicationForm({
             htmlFor="cv"
             className="mb-2 block text-sm font-medium text-slate-600"
           >
-            CV / önéletrajz link
+            Önéletrajz link *
           </label>
           <input
             id="cv"
             name="cv"
             type="url"
+            required
             value={formData.cv}
             onChange={(e) => updateField("cv", e.target.value)}
             placeholder="pl. Google Drive / Dropbox link"
             className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
           />
           <p className="mt-2 text-xs leading-5 text-slate-500">
-            Ha nincs kéznél önéletrajzod, ezt a mezőt egyelőre üresen hagyhatod.
+            Add meg az önéletrajzod elérhető linkjét.
           </p>
         </div>
 
