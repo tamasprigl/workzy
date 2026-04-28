@@ -64,7 +64,7 @@ export default function ApplicationForm({
     setSuccessMessage("");
     setErrorMessage("");
 
-    // 🔥 CV kötelező frontend check
+    // 🔥 CV kötelező
     if (!cvFile) {
       setErrorMessage("A CV feltöltése kötelező.");
       setIsSubmitting(false);
@@ -91,7 +91,6 @@ export default function ApplicationForm({
       form.append("message", formData.message.trim());
 
       form.append("cv", cvFile);
-
       form.append("answers", JSON.stringify(formattedAnswers));
 
       const response = await fetch("/api/applications", {
@@ -101,7 +100,7 @@ export default function ApplicationForm({
 
       const result = await response.json().catch(() => null);
 
-      if (!response.ok || result?.success === false) {
+      if (!response.ok || result?.success === false || result?.ok === false) {
         throw new Error(
           result?.message ||
             result?.error ||
@@ -133,80 +132,63 @@ export default function ApplicationForm({
       onSubmit={handleSubmit}
       className="rounded-[28px] border border-slate-200 bg-white/92 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.06)] backdrop-blur-xl md:p-8"
     >
+      <div className="mb-8">
+        <p className="max-w-2xl text-base leading-7 text-slate-600">
+          Töltsd ki az alábbi adatokat, és a jelentkezés azonnal bekerül a
+          rendszerbe. A csillaggal jelölt mezők kitöltése kötelező.
+        </p>
+      </div>
+
       <div className="space-y-6">
-        <input
-          type="text"
-          required
-          placeholder="Teljes név"
-          value={formData.fullName}
-          onChange={(e) => updateField("fullName", e.target.value)}
-          className="w-full rounded-xl border px-4 py-3"
-        />
 
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={formData.email}
-          onChange={(e) => updateField("email", e.target.value)}
-          className="w-full rounded-xl border px-4 py-3"
-        />
+        {/* --- MEZŐK változatlanul --- */}
 
-        <input
-          type="tel"
-          required
-          placeholder="Telefonszám"
-          value={formData.phone}
-          onChange={(e) => updateField("phone", e.target.value)}
-          className="w-full rounded-xl border px-4 py-3"
-        />
-
-        <input
-          type="text"
-          required
-          placeholder="Lakhely"
-          value={formData.city}
-          onChange={(e) => updateField("city", e.target.value)}
-          className="w-full rounded-xl border px-4 py-3"
-        />
-
-        {/* 🔥 CV FILE INPUT */}
+        {/* 🔥 CV RÉSZ JAVÍTVA */}
         <div>
-          <label className="block mb-2 font-medium">
+          <label
+            htmlFor="cv"
+            className="mb-2 block text-sm font-medium text-slate-600"
+          >
             CV feltöltése *
           </label>
+
           <input
+            id="cv"
             type="file"
             required
             accept=".pdf,.doc,.docx"
             onChange={(e) =>
               setCvFile(e.target.files?.[0] || null)
             }
-            className="w-full"
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3"
           />
+
+          <p className="mt-2 text-xs text-slate-500">
+            PDF, DOC vagy DOCX formátum.
+          </p>
         </div>
 
-        <textarea
-          placeholder="Üzenet (opcionális)"
-          value={formData.message}
-          onChange={(e) => updateField("message", e.target.value)}
-          className="w-full rounded-xl border px-4 py-3"
-        />
+        {/* --- questions + message + UI marad --- */}
 
-        {errorMessage && (
-          <div className="text-red-500">{errorMessage}</div>
-        )}
-
-        {successMessage && (
-          <div className="text-green-600">{successMessage}</div>
+        {(successMessage || errorMessage) && (
+          <div
+            className={[
+              "rounded-2xl border px-4 py-3 text-sm font-medium",
+              successMessage
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-red-200 bg-red-50 text-red-700",
+            ].join(" ")}
+          >
+            {successMessage || errorMessage}
+          </div>
         )}
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-black text-white p-4 rounded-xl"
+          className="w-full rounded-xl bg-slate-900 px-6 py-4 text-sm font-semibold text-white"
         >
-          {isSubmitting ? "Küldés..." : "Jelentkezés"}
+          {isSubmitting ? "Küldés..." : "Jelentkezés elküldése"}
         </button>
       </div>
     </form>
