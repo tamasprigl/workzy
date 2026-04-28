@@ -179,7 +179,7 @@ export default async function AdminDashboardPage() {
   // IDEIGLENES TESZT FIX
   // Ha az auth tokenben nincs email, ezzel az ügyfél emaillel keresünk.
   if (!employerEmail) {
-    employerEmail = "szabadiizabella.imz@gmail.com";
+    employerEmail = "szabadizabella.imz@gmail.com";
   }
 
   const user = await getCurrentUser(employerEmail);
