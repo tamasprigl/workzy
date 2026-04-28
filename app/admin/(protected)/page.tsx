@@ -21,6 +21,19 @@ type AirtableRecordLike = {
   fields?: Record<string, any>;
 };
 
+async function logoutAction() {
+  "use server";
+
+  const cookieStore = await cookies();
+
+  cookieStore.set("admin_session", "", {
+    path: "/",
+    maxAge: 0,
+  });
+
+  redirect("/admin/login");
+}
+
 function normalizeEmail(value: unknown): string {
   if (typeof value !== "string") return "";
   return value.trim().toLowerCase();
@@ -209,12 +222,23 @@ export default async function AdminDashboardPage() {
             A fiókodhoz tartozó munkáltatói hozzáférés jelenleg nem aktív.
           </p>
 
-          <a
-            href="mailto:support@workzy.hu"
-            className="inline-flex w-full justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
-          >
-            Kapcsolatfelvétel
-          </a>
+          <div className="space-y-3">
+            <a
+              href="mailto:support@workzy.hu"
+              className="inline-flex w-full justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+            >
+              Kapcsolatfelvétel
+            </a>
+
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="inline-flex w-full justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                Kijelentkezés
+              </button>
+            </form>
+          </div>
         </div>
       </main>
     );
@@ -363,7 +387,7 @@ export default async function AdminDashboardPage() {
               </p>
             </div>
 
-            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[420px]">
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[560px]">
               <Link
                 href="/admin/jobs/new"
                 className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
@@ -377,34 +401,18 @@ export default async function AdminDashboardPage() {
               >
                 Minden állás kezelése
               </Link>
+
+              <form action={logoutAction} className="sm:col-span-2">
+                <button
+                  type="submit"
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-black text-red-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-red-100"
+                >
+                  Kijelentkezés
+                </button>
+              </form>
             </div>
           </div>
         </section>
-
-        {!errorMsg && debugInfo && sortedJobs.length === 0 && (
-          <section className="rounded-[24px] border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
-            <h2 className="mb-3 text-base font-black">Debug ellenőrzés</h2>
-
-            <p>
-              Keresett email: <strong>{debugInfo.employerEmail}</strong>
-            </p>
-
-            <p>
-              Airtable Jobs tábla: <strong>{debugInfo.jobsTableName}</strong>
-            </p>
-
-            <p>
-              Összes Airtable job rekord:{" "}
-              <strong>{debugInfo.totalAirtableJobs}</strong>
-            </p>
-
-            <div className="mt-4 overflow-x-auto rounded-2xl bg-white p-4">
-              <pre className="whitespace-pre-wrap text-xs">
-                {JSON.stringify(debugInfo.sampleJobs, null, 2)}
-              </pre>
-            </div>
-          </section>
-        )}
 
         {!errorMsg && (
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -463,11 +471,6 @@ export default async function AdminDashboardPage() {
               <h3 className="text-2xl font-black text-slate-900">
                 Még nincs állásod
               </h3>
-
-              <p className="mx-auto mt-3 max-w-md text-sm font-medium text-slate-500">
-                A debug blokk fent megmutatja, milyen Owner/User mezőket kapunk
-                Airtable-ből.
-              </p>
 
               <Link
                 href="/admin/jobs/new"
@@ -567,18 +570,6 @@ export default async function AdminDashboardPage() {
                             </p>
                           </div>
                         </div>
-
-                        {job.hiddenCount > 0 && (
-                          <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-center">
-                            <p className="text-xs font-black text-slate-900">
-                              🔒 {job.hiddenCount} elrejtve
-                            </p>
-
-                            <p className="mt-1 text-[11px] font-medium text-slate-600">
-                              Aktiváld a teljes listához.
-                            </p>
-                          </div>
-                        )}
 
                         <div className="mt-auto grid grid-cols-2 gap-2 border-t border-slate-100 pt-4">
                           <Link
