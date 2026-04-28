@@ -28,7 +28,21 @@ function text(value: unknown): string {
 }
 
 function escapeAirtable(value: string): string {
-  return value.replace(/'/g, "\\'");
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+function getFirstLinkedId(value: unknown): string | null {
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+
+  return null;
+}
+
+function redirectToLogin(request: NextRequest, error: string) {
+  return NextResponse.redirect(
+    new URL(`/admin/login?error=${encodeURIComponent(error)}`, request.url)
+  );
 }
 
 async function findOrCreateEmployer(email: string) {
@@ -47,7 +61,6 @@ async function findOrCreateEmployer(email: string) {
     {
       fields: {
         Email: normalizedEmail,
-        Role: "employer",
       },
     },
   ]);
@@ -81,36 +94,34 @@ async function findOrCreateUser(email: string, employerId: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const token = request.nextUrl.searchParams.get("token");
+  const token = request.nextUrl.searchParams.get("token")?.trim();
 
   if (!token) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    return redirectToLogin(request, "missing-token");
   }
 
   try {
-    const records = await base(magicLinksTableName)
+    const magicLinks = await base(magicLinksTableName)
       .select({
         maxRecords: 1,
         filterByFormula: `{Token} = '${escapeAirtable(token)}'`,
       })
       .firstPage();
 
-    const magicLink = records[0];
+    const magicLink = magicLinks[0];
 
     if (!magicLink) {
-      return NextResponse.redirect(new URL("/admin/login", request.url));
+      return redirectToLogin(request, "invalid-token");
     }
 
     const email = text(magicLink.get("Email")).toLowerCase();
-    const purpose = text(magicLink.get("Purpose"));
-
-    const job = Array.isArray(magicLink.get("Job"))
-      ? (magicLink.get("Job") as string[])
-      : [];
 
     if (!email) {
-      return NextResponse.redirect(new URL("/admin/login", request.url));
+      return redirectToLogin(request, "missing-email");
     }
+
+    const purpose = text(magicLink.get("Purpose"));
+    const jobId = getFirstLinkedId(magicLink.get("Job"));
 
     const employer = await findOrCreateEmployer(email);
     const user = await findOrCreateUser(email, employer.id);
@@ -120,15 +131,15 @@ export async function GET(request: NextRequest) {
     const password = text(user.fields.Password);
 
     const authToken = await createAuthToken({
-      email,
       username: email,
+      email,
+      role: role as any,
       userEmail: email,
       id: user.id,
       recordId: user.id,
       userId: user.id,
       employerId: employer.id,
       sub: user.id,
-      role: role as any,
     });
 
     let redirectPath = "/admin/jobs";
@@ -136,14 +147,12 @@ export async function GET(request: NextRequest) {
     if (!name || !password) {
       const params = new URLSearchParams();
 
-      if (job[0]) params.set("jobId", job[0]);
+      if (jobId) params.set("jobId", jobId);
       if (purpose) params.set("purpose", purpose);
 
-      redirectPath = `/admin/onboarding/account${
-        params.toString() ? `?${params.toString()}` : ""
-      }`;
-    } else if (purpose === "job_activation" && job[0]) {
-      redirectPath = `/admin/jobs/${job[0]}/edit`;
+      redirectPath = `/admin/onboarding/account?${params.toString()}`;
+    } else if (purpose === "job_activation" && jobId) {
+      redirectPath = `/admin/jobs/${jobId}/edit`;
     }
 
     const response = NextResponse.redirect(new URL(redirectPath, request.url));
@@ -157,8 +166,12 @@ export async function GET(request: NextRequest) {
     });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Magic link verify error:", error);
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+
+    return redirectToLogin(
+      request,
+      error?.message || "magic-link-verify-failed"
+    );
   }
 }
