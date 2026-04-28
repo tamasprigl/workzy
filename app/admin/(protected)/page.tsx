@@ -171,7 +171,7 @@ export default async function AdminDashboardPage() {
   // Ezt csak azért tesszük be, hogy lássuk: Owner email alapján működik-e a dashboard.
   // Ha ezzel megjelennek az állások, akkor az auth token nem ad vissza jó emailt.
   if (!employerEmail) {
-    employerEmail = "szabadizabella.imz@gmail.com";
+    employerEmail = "szabadiizabella.imz@gmail.com";
   }
 
   const user = await getCurrentUser(employerEmail);
