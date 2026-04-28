@@ -21,8 +21,37 @@ type AirtableRecordLike = {
   fields?: Record<string, any>;
 };
 
-function escapeAirtableFormulaValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+function normalizeEmail(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim().toLowerCase();
+}
+
+function extractStrings(value: unknown): string[] {
+  if (!value) return [];
+
+  if (typeof value === "string" || typeof value === "number") {
+    return [String(value).trim()];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(extractStrings);
+  }
+
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).flatMap(extractStrings);
+  }
+
+  return [];
+}
+
+function fieldMatchesEmail(value: unknown, email: string): boolean {
+  const target = normalizeEmail(email);
+  if (!target) return false;
+
+  return extractStrings(value)
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+    .some((item) => item === target || item.includes(target));
 }
 
 function getStatusLabel(status: string): string {
@@ -133,9 +162,14 @@ export default async function AdminDashboardPage() {
 
   const authUser = await verifyAuthToken(token);
 
-  if (!authUser?.email) redirect("/admin/login");
+  const employerEmail =
+    normalizeEmail(authUser?.email) ||
+    normalizeEmail(authUser?.username) ||
+    normalizeEmail(authUser?.userEmail);
 
-  const user = await getCurrentUser(authUser.email);
+  if (!employerEmail) redirect("/admin/login");
+
+  const user = await getCurrentUser(employerEmail);
   const employerId = user?.employerId;
 
   let access: AccessData = {
@@ -194,17 +228,18 @@ export default async function AdminDashboardPage() {
     const applicationsTableName =
       process.env.AIRTABLE_APPLICATIONS_TABLE_NAME || "Applications";
 
-    const employerEmail = authUser.email.toLowerCase().trim();
-    const safeEmployerEmail = escapeAirtableFormulaValue(employerEmail);
+    const allJobRecords = await base(jobsTableName).select().all();
 
-    const selectedJobsRecords = await base(jobsTableName)
-      .select({
-        filterByFormula: `OR(
-          LOWER({Owner}) = "${safeEmployerEmail}",
-          LOWER({User}) = "${safeEmployerEmail}"
-        )`,
-      })
-      .all();
+    const selectedJobsRecords = allJobRecords.filter((record) => {
+      const fields =
+        (record as unknown as { fields?: Record<string, unknown> }).fields || {};
+
+      return (
+        fieldMatchesEmail(fields.Owner, employerEmail) ||
+        fieldMatchesEmail(fields.User, employerEmail) ||
+        fieldMatchesEmail(fields.Employer, employerEmail)
+      );
+    });
 
     const baseJobs = Array.from(selectedJobsRecords).map(mapJobRecord);
     const jobIds = baseJobs.map((job: any) => job.id).filter(Boolean);
@@ -283,7 +318,7 @@ export default async function AdminDashboardPage() {
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-4xl font-black tracking-tight text-slate-900">
-                Üdv újra, Tamás 👋
+                Üdv újra 👋
               </h1>
 
               <p className="mt-3 max-w-2xl text-lg font-medium text-slate-600">
