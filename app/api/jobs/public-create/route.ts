@@ -25,6 +25,15 @@ function slugify(value: string) {
     .slice(0, 70);
 }
 
+function getSiteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    "https://www.workzy.hu"
+  ).replace(/\/$/, "");
+}
+
 type PublicCreateJobBody = {
   title?: string;
   location?: string;
@@ -138,12 +147,7 @@ export async function POST(request: Request) {
       expiresAt,
     });
 
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.APP_URL ||
-      "http://localhost:3000";
-
-    const magicLink = `${baseUrl}/api/auth/verify?token=${magicToken}`;
+    const magicLink = `${getSiteUrl()}/api/auth/verify?token=${magicToken}`;
 
     await sendMagicLinkEmail({
       email,
