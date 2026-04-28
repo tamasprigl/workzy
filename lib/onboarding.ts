@@ -241,7 +241,6 @@ export async function submitOnboarding(formData: FormData) {
       fields: {
         Owner: normalizedEmail,
         User: normalizedEmail,
-        Company: companyName,
         "Company Record": [companyId],
         Status: "Aktív",
       } as Airtable.FieldSet,
