@@ -47,6 +47,7 @@ async function findOrCreateEmployer(email: string) {
     {
       fields: {
         Email: normalizedEmail,
+        Role: "employer",
       },
     },
   ]);
@@ -77,6 +78,7 @@ export async function GET(request: NextRequest) {
 
     const email = text(magicLink.get("Email")).toLowerCase();
     const purpose = text(magicLink.get("Purpose"));
+
     const job = Array.isArray(magicLink.get("Job"))
       ? (magicLink.get("Job") as string[])
       : [];
@@ -87,6 +89,8 @@ export async function GET(request: NextRequest) {
 
     const employer = await findOrCreateEmployer(email);
 
+    const role = String(employer.fields.Role || "employer").toLowerCase();
+
     const authToken = await createAuthToken({
       email,
       username: email,
@@ -96,6 +100,7 @@ export async function GET(request: NextRequest) {
       employerId: employer.id,
       userId: employer.id,
       sub: employer.id,
+      role: role as any,
     });
 
     const redirectPath =
