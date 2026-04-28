@@ -125,6 +125,9 @@ export default async function AdminJobsPage() {
     typeof currentUser === "string"
       ? currentUser
       : text(currentUserObject.email) ||
+        text(currentUserObject.Email) ||
+        text(currentUserObject.userEmail) ||
+        text(currentUserObject.owner) ||
         text(currentUserObject.id) ||
         text(currentUserObject.recordId) ||
         "";
@@ -155,11 +158,19 @@ export default async function AdminJobsPage() {
 
   if (!currentEmail && currentRecordId) {
     currentEmail =
-      (await getEmailFromRecord(base, usersTableName, currentRecordId)) ||
-      (await getEmailFromRecord(base, employersTableName, currentRecordId));
+      (await getEmailFromRecord(base, employersTableName, currentRecordId)) ||
+      (await getEmailFromRecord(base, usersTableName, currentRecordId));
   }
 
-  const targets = [currentUserRaw, currentRecordId, currentEmail].filter(Boolean);
+  const targets = [currentUserRaw, currentRecordId, currentEmail]
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+
+  console.log("ADMIN JOBS DEBUG - CURRENT USER:", currentUser);
+  console.log("ADMIN JOBS DEBUG - CURRENT USER RAW:", currentUserRaw);
+  console.log("ADMIN JOBS DEBUG - CURRENT RECORD ID:", currentRecordId);
+  console.log("ADMIN JOBS DEBUG - CURRENT EMAIL:", currentEmail);
+  console.log("ADMIN JOBS DEBUG - TARGETS:", targets);
 
   try {
     const records = await base(jobsTableName).select().all();
@@ -168,14 +179,24 @@ export default async function AdminJobsPage() {
       const fields =
         (record as unknown as { fields?: Record<string, unknown> }).fields || {};
 
-      return (
+      const isMatch =
         fieldMatches(fields.Owner, targets) ||
         fieldMatches(fields.User, targets) ||
         fieldMatches(fields.Employer, targets) ||
         fieldMatches(fields["Created By"], targets) ||
         fieldMatches(fields["Company Record"], targets) ||
-        fieldMatches(fields.Magiclinks, targets)
-      );
+        fieldMatches(fields.Magiclinks, targets);
+
+      console.log("ADMIN JOBS DEBUG - JOB:", {
+        id: record.id,
+        title: firstString(fields.Title),
+        owner: fields.Owner,
+        user: fields.User,
+        employer: fields.Employer,
+        isMatch,
+      });
+
+      return isMatch;
     });
 
     jobs = filteredRecords.map((record) => {
