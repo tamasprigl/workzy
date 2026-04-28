@@ -64,16 +64,16 @@ function fieldMatchesEmail(value: unknown, email: string): boolean {
   return extractStrings(value)
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
-    .some((item) => item === target || item.includes(target));
+    .some((item) => item === target);
 }
 
-function recordContainsEmail(fields: Record<string, unknown>, email: string): boolean {
-  const target = normalizeEmail(email);
-  if (!target) return false;
+function fieldMatchesRecordId(value: unknown, recordId?: string): boolean {
+  if (!recordId) return false;
 
-  return extractStrings(fields)
-    .map((item) => item.trim().toLowerCase())
-    .some((item) => item === target || item.includes(target));
+  return extractStrings(value)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .some((item) => item === recordId);
 }
 
 function getStatusLabel(status: string): string {
@@ -184,13 +184,13 @@ export default async function AdminDashboardPage() {
 
   const authUser = await verifyAuthToken(token);
 
-  let employerEmail =
+  const employerEmail =
     normalizeEmail(authUser?.email) ||
     normalizeEmail(authUser?.username) ||
     normalizeEmail(authUser?.userEmail);
 
   if (!employerEmail) {
-    employerEmail = "szabadiizabella.imz@gmail.com";
+    redirect("/admin/login");
   }
 
   const user = await getCurrentUser(employerEmail);
@@ -276,9 +276,8 @@ export default async function AdminDashboardPage() {
         fieldMatchesEmail(fields["Employer Email"], employerEmail) ||
         fieldMatchesEmail(fields.User, employerEmail) ||
         fieldMatchesEmail(fields.user, employerEmail) ||
-        fieldMatchesEmail(fields.Employer, employerEmail) ||
-        fieldMatchesEmail(fields.employer, employerEmail) ||
-        recordContainsEmail(fields, employerEmail)
+        fieldMatchesRecordId(fields.Employer, employerId) ||
+        fieldMatchesRecordId(fields.employer, employerId)
       );
     });
 
@@ -356,16 +355,12 @@ export default async function AdminDashboardPage() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
-                Üdv újra - TESZT VERZIÓ 👋
+                Üdv újra 👋
               </h1>
 
               <p className="mt-2 max-w-3xl text-base font-semibold leading-7 text-slate-600">
                 Az állásaid és jelentkezőid egy helyen. Szerkeszd a pozíciókat,
                 nézd meg a hirdetést, és kezeld gyorsan a jelentkezőket.
-              </p>
-
-              <p className="mt-2 text-xs font-bold text-blue-700">
-                Debug email: {employerEmail}
               </p>
             </div>
 
