@@ -30,7 +30,7 @@ function getText(value: unknown): string {
 }
 
 function escapeAirtable(value: string): string {
-  return value.replace(/'/g, "\\'");
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
 function getLinkedIds(value: unknown): string[] {
@@ -39,7 +39,13 @@ function getLinkedIds(value: unknown): string[] {
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter((item) => item.startsWith("rec"));
+}
+
+function assertRecordId(value: string, label: string) {
+  if (!value || !value.startsWith("rec")) {
+    throw new Error(`Invalid ${label}: ${value || "missing"}`);
+  }
 }
 
 async function getSession() {
@@ -123,9 +129,9 @@ async function createOrUpdateCompany({
 
   if (existingCompanyIds.length > 0) {
     const companyId = existingCompanyIds[0];
+    assertRecordId(companyId, "existing companyId");
 
     await base(companiesTableName).update(companyId, companyFields);
-
     return companyId;
   }
 
@@ -135,7 +141,8 @@ async function createOrUpdateCompany({
     },
   ]);
 
-  const companyId = created[0].id;
+  const companyId = created[0]?.id;
+  assertRecordId(companyId, "created companyId");
 
   await base(employersTableName).update(employer.id, {
     Company: [companyId],
@@ -201,6 +208,8 @@ export async function submitOnboarding(formData: FormData) {
       description,
     });
 
+    assertRecordId(companyId, "companyId before job update");
+
     const user = await findUserByEmail(base, normalizedEmail);
 
     if (user) {
@@ -220,6 +229,13 @@ export async function submitOnboarding(formData: FormData) {
       })
       .all();
 
+    console.log("ONBOARDING_DEBUG", {
+      email: normalizedEmail,
+      employerId: employer.id,
+      companyId,
+      pendingJobsCount: pendingJobs.length,
+    });
+
     const updates = pendingJobs.map((job) => ({
       id: job.id,
       fields: {
@@ -235,7 +251,7 @@ export async function submitOnboarding(formData: FormData) {
       await base(jobsTableName).update(updates.slice(i, i + 10));
     }
   } catch (error) {
-    console.error("Onboarding error full:", error);
+    console.error("Onboarding error full:", JSON.stringify(error, null, 2));
     throw error;
   }
 
