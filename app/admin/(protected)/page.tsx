@@ -54,6 +54,15 @@ function fieldMatchesEmail(value: unknown, email: string): boolean {
     .some((item) => item === target || item.includes(target));
 }
 
+function recordContainsEmail(fields: Record<string, unknown>, email: string): boolean {
+  const target = normalizeEmail(email);
+  if (!target) return false;
+
+  return extractStrings(fields)
+    .map((item) => item.trim().toLowerCase())
+    .some((item) => item === target || item.includes(target));
+}
+
 function getStatusLabel(status: string): string {
   const normalized = String(status || "").toLowerCase();
 
@@ -167,9 +176,8 @@ export default async function AdminDashboardPage() {
     normalizeEmail(authUser?.username) ||
     normalizeEmail(authUser?.userEmail);
 
-  // IDEIGLENES TESZT FIX:
-  // Ezt csak azért tesszük be, hogy lássuk: Owner email alapján működik-e a dashboard.
-  // Ha ezzel megjelennek az állások, akkor az auth token nem ad vissza jó emailt.
+  // IDEIGLENES TESZT FIX
+  // Ha az auth tokenben nincs email, ezzel az ügyfél emaillel keresünk.
   if (!employerEmail) {
     employerEmail = "szabadiizabella.imz@gmail.com";
   }
@@ -218,6 +226,7 @@ export default async function AdminDashboardPage() {
 
   let jobs: any[] = [];
   let errorMsg = "";
+  let debugInfo: any = null;
 
   try {
     const airtableToken = process.env.AIRTABLE_TOKEN;
@@ -235,14 +244,36 @@ export default async function AdminDashboardPage() {
 
     const allJobRecords = await base(jobsTableName).select().all();
 
+    debugInfo = {
+      employerEmail,
+      jobsTableName,
+      totalAirtableJobs: allJobRecords.length,
+      sampleJobs: allJobRecords.slice(0, 10).map((record) => ({
+        id: record.id,
+        title: record.fields?.Title,
+        owner: record.fields?.Owner,
+        user: record.fields?.User,
+        employer: record.fields?.Employer,
+        fieldNames: Object.keys(record.fields || {}),
+      })),
+    };
+
+    console.log("ADMIN DASHBOARD DEBUG:", JSON.stringify(debugInfo, null, 2));
+
     const selectedJobsRecords = allJobRecords.filter((record) => {
       const fields =
         (record as unknown as { fields?: Record<string, unknown> }).fields || {};
 
       return (
         fieldMatchesEmail(fields.Owner, employerEmail) ||
+        fieldMatchesEmail(fields.owner, employerEmail) ||
+        fieldMatchesEmail(fields["Owner Email"], employerEmail) ||
+        fieldMatchesEmail(fields["Employer Email"], employerEmail) ||
         fieldMatchesEmail(fields.User, employerEmail) ||
-        fieldMatchesEmail(fields.Employer, employerEmail)
+        fieldMatchesEmail(fields.user, employerEmail) ||
+        fieldMatchesEmail(fields.Employer, employerEmail) ||
+        fieldMatchesEmail(fields.employer, employerEmail) ||
+        recordContainsEmail(fields, employerEmail)
       );
     });
 
@@ -323,12 +354,16 @@ export default async function AdminDashboardPage() {
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-4xl font-black tracking-tight text-slate-900">
-                Üdv újra 👋
+                Üdv újra - TESZT VERZIÓ 👋
               </h1>
 
               <p className="mt-3 max-w-2xl text-lg font-medium text-slate-600">
                 Az állásaid és jelentkezőid egy helyen. Szerkeszd a pozíciókat,
                 nézd meg a hirdetést, és kezeld gyorsan a jelentkezőket.
+              </p>
+
+              <p className="mt-3 text-sm font-bold text-blue-700">
+                Debug email: {employerEmail}
               </p>
             </div>
 
@@ -349,6 +384,31 @@ export default async function AdminDashboardPage() {
             </div>
           </div>
         </section>
+
+        {!errorMsg && debugInfo && sortedJobs.length === 0 && (
+          <section className="rounded-[28px] border border-blue-200 bg-blue-50 p-6 text-sm text-blue-900">
+            <h2 className="mb-3 text-lg font-black">Debug ellenőrzés</h2>
+
+            <p>
+              Keresett email: <strong>{debugInfo.employerEmail}</strong>
+            </p>
+
+            <p>
+              Airtable Jobs tábla: <strong>{debugInfo.jobsTableName}</strong>
+            </p>
+
+            <p>
+              Összes Airtable job rekord:{" "}
+              <strong>{debugInfo.totalAirtableJobs}</strong>
+            </p>
+
+            <div className="mt-4 overflow-x-auto rounded-2xl bg-white p-4">
+              <pre className="whitespace-pre-wrap text-xs">
+                {JSON.stringify(debugInfo.sampleJobs, null, 2)}
+              </pre>
+            </div>
+          </section>
+        )}
 
         {!errorMsg && (
           <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -409,7 +469,8 @@ export default async function AdminDashboardPage() {
               </h3>
 
               <p className="mx-auto mt-3 max-w-md text-sm font-medium text-slate-500">
-                Hozd létre az első állást, és találd meg a legjobb jelölteket.
+                A debug blokk fent megmutatja, milyen Owner/User mezőket kapunk
+                Airtable-ből.
               </p>
 
               <Link
