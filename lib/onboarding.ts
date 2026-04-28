@@ -255,5 +255,5 @@ export async function submitOnboarding(formData: FormData) {
     throw error;
   }
 
-  redirect("/admin/jobs");
+  redirect("/admin");
 }
