@@ -67,7 +67,9 @@ async function getCurrentEmployer() {
   const payload = await verifyAuthToken(token);
 
   const email =
-    typeof payload?.email === "string" ? payload.email.trim().toLowerCase() : "";
+    typeof payload?.email === "string"
+      ? payload.email.trim().toLowerCase()
+      : "";
 
   if (!email) return null;
 
@@ -81,11 +83,10 @@ async function getCurrentEmployer() {
     .firstPage();
 
   const employer = employers[0];
-  if (!employer) return null;
 
   return {
-    id: employer.id,
-    email: getText(employer.get("Email")) || email,
+    id: employer?.id || "",
+    email: getText(employer?.get("Email")) || email,
   };
 }
 
@@ -106,7 +107,11 @@ async function createAndSendMagicLink({
     Email: email,
     Purpose: "job_activation",
     "Expires At": expiresAt,
-    JobId: jobId,
+
+    // FONTOS:
+    // Ha nálad a MagicLinks táblában a "Job" linked record mező,
+    // akkor ez a helyes forma:
+    Job: [jobId],
   } as any);
 
   const magicLink = `${appUrl}/api/auth/magic-link?token=${token}`;
@@ -123,8 +128,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const title = getText(body.title || body.Title);
-    const companyName = getText(body.company || body.Company);
     const location = getText(body.location || body.Location);
+    const salary = getText(body.salary || body.Salary);
+    const jobType = getText(body.jobType || body.type || body.Type);
+    const employmentType = getText(
+      body.employmentType || body["Employment Type"]
+    );
+    const shift = getText(body.shift || body.schedule || body.Schedule);
+    const shortDescription = getText(
+      body.shortDescription || body["Short Description"]
+    );
+    const fullDescription = getText(
+      body.fullDescription || body.description || body.Description
+    );
+    const requirements = getText(body.requirements || body.Requirements);
+    const benefits = getText(body.benefits || body.Benefits);
+    const ctaText = getText(body.ctaText || body["CTA Text"]);
 
     if (!title) {
       return NextResponse.json(
@@ -144,20 +163,39 @@ export async function POST(request: NextRequest) {
 
     const slug = createSlug(title, location);
 
-    const fields = {
+    const fields: Record<string, any> = {
       Title: title,
       Slug: slug,
       Status: "Aktív",
-      Company: companyName,
       Location: location,
+      Salary: salary,
+      Type: jobType,
+      "Employment Type": employmentType,
+      Schedule: shift,
+      "Short Description": shortDescription,
+      Description: fullDescription,
+      Requirements: requirements,
+      Benefits: benefits,
+      "CTA Text": ctaText,
+
+      // Ezek nálad szöveges mezők legyenek Airtable-ben:
       User: currentEmployer.email,
       Owner: currentEmployer.email,
     };
 
-    // 🔥 EZ A LÉNYEG - FIX
-    const createdRecords = await base(jobsTableName).create([
-      { fields },
-    ] as any);
+    // Üres mezőket nem küldünk Airtable-be
+    Object.keys(fields).forEach((key) => {
+      if (fields[key] === "") {
+        delete fields[key];
+      }
+    });
+
+    // FONTOS:
+    // Company mezőt direkt NEM küldünk,
+    // mert nálad valószínűleg linked record,
+    // és emiatt jött az INVALID_VALUE_FOR_COLUMN hiba.
+
+    const createdRecords = await base(jobsTableName).create([{ fields }] as any);
 
     const jobId = createdRecords[0].id;
 
@@ -173,7 +211,7 @@ export async function POST(request: NextRequest) {
       slug,
     });
   } catch (error) {
-    console.error(error);
+    console.error("POST /api/jobs/create error:", error);
 
     return NextResponse.json(
       { success: false, error: "Hiba történt." },
