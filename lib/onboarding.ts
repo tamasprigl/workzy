@@ -249,6 +249,10 @@ export async function submitOnboarding(formData: FormData) {
     for (let i = 0; i < updates.length; i += 10) {
       await base(jobsTableName).update(updates.slice(i, i + 10));
     }
+
+    if (pendingJobs.length > 0) {
+      redirect(`/admin/jobs/${pendingJobs[0].id}/edit`);
+    }
   } catch (error) {
     console.error("Onboarding error full:", JSON.stringify(error, null, 2));
     throw error;
