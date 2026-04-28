@@ -27,9 +27,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const formData = await request.formData();
 
-  const email = String(
-    formData.get("email") ?? formData.get("username") ?? ""
-  )
+  const email = String(formData.get("email") ?? formData.get("username") ?? "")
     .trim()
     .toLowerCase();
 
@@ -39,16 +37,14 @@ export async function POST(request: Request) {
     redirect("/admin/login?error=missing_credentials");
   }
 
-  const employersTable =
-    process.env.AIRTABLE_EMPLOYERS_TABLE_NAME || "Employers";
-
+  const usersTable = process.env.AIRTABLE_USERS_TABLE_NAME || "Users";
   const base = getBase();
 
   const safeEmail = escapeAirtableString(email);
 
-  const records = await base(employersTable)
+  const records = await base(usersTable)
     .select({
-      filterByFormula: `LOWER({Email}) = '${safeEmail}'`,
+      filterByFormula: `LOWER({email}) = '${safeEmail}'`,
       maxRecords: 1,
     })
     .firstPage();
@@ -57,25 +53,26 @@ export async function POST(request: Request) {
     redirect("/admin/login?error=invalid_credentials");
   }
 
-  const employer = records[0];
+  const user = records[0];
 
-  const storedPassword = String(employer.fields.Password || "").trim();
+  const storedPassword = String(user.fields.Password || "").trim();
 
   if (!storedPassword || storedPassword !== password) {
     redirect("/admin/login?error=invalid_credentials");
   }
 
-  const role = String(employer.fields.Role || "employer").toLowerCase();
+  const role = String(user.fields.Role || "employer").toLowerCase();
 
-  const companyField = employer.fields.Company;
-  const companyId = Array.isArray(companyField) ? companyField[0] : null;
+  const employerField = user.fields["Employer Record"];
+  const employerId = Array.isArray(employerField)
+    ? String(employerField[0])
+    : undefined;
 
   const token = await createAuthToken({
     username: email,
     email,
     role: role as any,
-    employerId: employer.id,
-    companyId,
+    employerId,
   });
 
   const cookieStore = await cookies();
