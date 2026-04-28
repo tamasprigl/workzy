@@ -162,12 +162,17 @@ export default async function AdminDashboardPage() {
 
   const authUser = await verifyAuthToken(token);
 
-  const employerEmail =
+  let employerEmail =
     normalizeEmail(authUser?.email) ||
     normalizeEmail(authUser?.username) ||
     normalizeEmail(authUser?.userEmail);
 
-  if (!employerEmail) redirect("/admin/login");
+  // IDEIGLENES TESZT FIX:
+  // Ezt csak azért tesszük be, hogy lássuk: Owner email alapján működik-e a dashboard.
+  // Ha ezzel megjelennek az állások, akkor az auth token nem ad vissza jó emailt.
+  if (!employerEmail) {
+    employerEmail = "szabadizabella.imz@gmail.com";
+  }
 
   const user = await getCurrentUser(employerEmail);
   const employerId = user?.employerId;
