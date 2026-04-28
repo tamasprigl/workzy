@@ -7,10 +7,28 @@ import { sendMagicLinkEmail } from "@/lib/email";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+type PublicCreateJobBody = {
+  title?: string;
+  location?: string;
+  salary?: string;
+  email?: string;
+  shortDescription?: string;
+  campaign?: {
+    platform?: string;
+    budget?: number;
+    location?: string;
+    goal?: string;
+  };
+};
+
 function getText(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number") return String(value);
   return "";
+}
+
+function escapeAirtable(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
 function slugify(value: string) {
@@ -34,19 +52,50 @@ function getSiteUrl(): string {
   ).replace(/\/$/, "");
 }
 
-type PublicCreateJobBody = {
-  title?: string;
-  location?: string;
-  salary?: string;
-  email?: string;
-  shortDescription?: string;
-  campaign?: {
-    platform?: string;
-    budget?: number;
-    location?: string;
-    goal?: string;
-  };
-};
+function getBase() {
+  const airtableToken = process.env.AIRTABLE_TOKEN;
+  const airtableBaseId = process.env.AIRTABLE_BASE_ID;
+
+  if (!airtableToken || !airtableBaseId) {
+    throw new Error("Hiányzó Airtable konfiguráció.");
+  }
+
+  return new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
+}
+
+async function findOrCreateCompany(base: Airtable.Base, companyName: string) {
+  const companiesTableName =
+    process.env.AIRTABLE_COMPANIES_TABLE_NAME || "Companies";
+
+  const safeName = escapeAirtable(companyName);
+
+  const existingCompanies = await base(companiesTableName)
+    .select({
+      maxRecords: 1,
+      filterByFormula: `LOWER({Name}) = '${safeName.toLowerCase()}'`,
+    })
+    .firstPage();
+
+  if (existingCompanies[0]) {
+    return existingCompanies[0].id;
+  }
+
+  const createdCompanies = await base(companiesTableName).create([
+    {
+      fields: {
+        Name: companyName,
+      },
+    },
+  ]);
+
+  const companyId = createdCompanies[0]?.id;
+
+  if (!companyId || !companyId.startsWith("rec")) {
+    throw new Error("Érvénytelen Company rekord azonosító.");
+  }
+
+  return companyId;
+}
 
 export async function POST(request: Request) {
   try {
@@ -72,34 +121,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const airtableToken = process.env.AIRTABLE_TOKEN;
-    const airtableBaseId = process.env.AIRTABLE_BASE_ID;
+    const base = getBase();
     const jobsTableName = process.env.AIRTABLE_JOBS_TABLE_NAME || "Jobs";
-
-    if (!airtableToken || !airtableBaseId) {
-      return NextResponse.json(
-        { success: false, message: "Hiányzó Airtable konfiguráció." },
-        { status: 500 }
-      );
-    }
-
-    const base = new Airtable({ apiKey: airtableToken }).base(airtableBaseId);
 
     const slug = `${slugify(title)}-${Math.random()
       .toString(36)
       .substring(2, 7)}`;
 
+    const companyName = email.split("@")[0] || "Új cég";
+    const companyId = await findOrCreateCompany(base, companyName);
+
+    if (!companyId.startsWith("rec")) {
+      throw new Error(`Érvénytelen companyId: ${companyId}`);
+    }
+
     const jobFields: Record<string, unknown> = {
       Title: title,
       Slug: slug,
       Status: "Piszkozat",
-      Company: email.split("@")[0],
       Location: location,
       Salary: salary,
       "Short Description": shortDescription,
       User: email,
       Owner: email,
       "Submitted Email": email,
+
+      // Fontos: ez Airtable linked record mező, ezért ARRAY kell.
+      "Company Record": [companyId],
     };
 
     if (body.campaign?.platform) {
@@ -130,7 +178,7 @@ export async function POST(request: Request) {
 
     const createdJobs = await base(jobsTableName).create([
       {
-        fields: cleanedJobFields as any,
+        fields: cleanedJobFields as Airtable.FieldSet,
       },
     ]);
 
