@@ -40,6 +40,32 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function getField(fields: Record<string, unknown>, names: string[]): unknown {
+  for (const name of names) {
+    if (fields[name] !== undefined && fields[name] !== null) return fields[name];
+  }
+  return undefined;
+}
+
+function getAttachment(value: unknown): { url: string; filename: string } | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+
+  const first = value[0];
+  if (!isPlainObject(first)) return null;
+
+  const url = typeof first.url === "string" ? first.url : "";
+  const filename =
+    typeof first.filename === "string"
+      ? first.filename
+      : typeof first.name === "string"
+        ? first.name
+        : "Önéletrajz";
+
+  if (!url) return null;
+
+  return { url, filename };
+}
+
 function isAirtableRecordId(value: string): boolean {
   return value.startsWith("rec") && value.length >= 10;
 }
@@ -95,31 +121,20 @@ function extractOwnerEmailsFromValue(value: unknown): string[] {
     }
 
     if (isPlainObject(input)) {
-      if (typeof input.email === "string" && input.email.trim()) {
-        emails.push(input.email.trim());
-      }
-
-      if (typeof input.Email === "string" && input.Email.trim()) {
-        emails.push(input.Email.trim());
-      }
+      if (typeof input.email === "string" && input.email.trim()) emails.push(input.email.trim());
+      if (typeof input.Email === "string" && input.Email.trim()) emails.push(input.Email.trim());
 
       if (isPlainObject(input.fields)) {
         const fields = input.fields;
 
         const emailValue =
-          (typeof fields.email === "string" && fields.email.trim() ? fields.email : null) ||
-          (typeof fields.Email === "string" && fields.Email.trim() ? fields.Email : null) ||
-          (typeof fields["Owner Email"] === "string" && fields["Owner Email"].trim()
-            ? fields["Owner Email"]
-            : null) ||
-          (typeof fields["Employer Email"] === "string" && fields["Employer Email"].trim()
-            ? fields["Employer Email"]
-            : null) ||
-          (typeof fields["Login Email"] === "string" && fields["Login Email"].trim()
-            ? fields["Login Email"]
-            : null);
+          getFirstString(fields.email) ||
+          getFirstString(fields.Email) ||
+          getFirstString(fields["Owner Email"]) ||
+          getFirstString(fields["Employer Email"]) ||
+          getFirstString(fields["Login Email"]);
 
-        if (emailValue) emails.push(emailValue.trim());
+        if (emailValue) emails.push(emailValue);
       }
     }
   };
@@ -157,20 +172,20 @@ async function resolveOwnerEmails(params: {
           getFirstString(rec.get("Employer Email")) ||
           getFirstString(rec.get("Login Email"));
 
-        if (email) {
-          resolvedEmails.push(email);
-        }
+        if (email) resolvedEmails.push(email);
       } catch {
         // Nem ebben a táblában van az owner rekord, megyünk tovább.
       }
     }
   }
 
-  const allEmails = [...directEmails, ...resolvedEmails]
-    .map((email) => normalizeLower(email))
-    .filter(Boolean);
-
-  return Array.from(new Set(allEmails));
+  return Array.from(
+    new Set(
+      [...directEmails, ...resolvedEmails]
+        .map((email) => normalizeLower(email))
+        .filter(Boolean)
+    )
+  );
 }
 
 function formatDate(value: unknown): string {
@@ -191,8 +206,8 @@ function formatDate(value: unknown): string {
 
 function SectionTag({ children }: { children: ReactNode }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/78 px-4 py-2 text-sm font-medium text-slate-500 shadow-[0_8px_20px_rgba(15,23,42,0.04)] backdrop-blur-md">
-      <span className="inline-block h-2 w-2 rounded-full bg-cyan-400/80" />
+    <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/70 bg-white/90 px-4 py-2 text-sm font-bold text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-md">
+      <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 shadow-[0_0_16px_rgba(34,211,238,0.9)]" />
       {children}
     </div>
   );
@@ -224,12 +239,10 @@ export default async function AdminJobApplicationsPage({ params }: PageProps) {
 
   if (!airtableToken || !baseId) {
     return (
-      <main className="relative min-h-screen overflow-hidden bg-[#f4f7f9] text-slate-900">
-        <div className="mx-auto max-w-6xl p-6 md:p-8">
-          <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 shadow-[0_14px_36px_rgba(239,68,68,0.08)]">
-            <h1 className="text-2xl font-black tracking-[-0.03em] text-slate-900">Hiba</h1>
-            <p className="mt-3 text-sm text-red-700">Hiányzik az Airtable konfiguráció.</p>
-          </div>
+      <main className="min-h-screen bg-[#f4f7f9] p-6 text-slate-900">
+        <div className="mx-auto max-w-6xl rounded-[28px] border border-red-200 bg-red-50 p-6">
+          <h1 className="text-2xl font-black">Hiba</h1>
+          <p className="mt-3 text-sm text-red-700">Hiányzik az Airtable konfiguráció.</p>
         </div>
       </main>
     );
@@ -279,31 +292,45 @@ export default async function AdminJobApplicationsPage({ params }: PageProps) {
     const filteredApps = appsRecords.filter((rec) => {
       const jobField = rec.get("Job");
 
-      if (Array.isArray(jobField)) {
-        return jobField.includes(id);
-      }
-
+      if (Array.isArray(jobField)) return jobField.includes(id);
       return jobField === id;
     });
 
-    allApplicantRecords = filteredApps.map((rec) => ({
-      id: rec.id,
-      name:
-        getFirstString(rec.get("Name")) ||
-        getFirstString(rec.get("Full Name")) ||
-        getFirstString(rec.get("FullName")),
-      email: getFirstString(rec.get("Email")),
-      phone: getFirstString(rec.get("Phone")),
-      message: getFirstString(rec.get("Message") || rec.get("Cover Letter")),
-      status: getFirstString(rec.get("Status")),
-      createdDate: formatDate(rec.get("Created") || rec.get("Created time") || rec.get("Created At")),
-    }));
+    allApplicantRecords = filteredApps.map((rec) => {
+      const fields = rec.fields as Record<string, unknown>;
+
+      const cvAttachment =
+        getAttachment(getField(fields, ["CV", "Resume", "Önéletrajz", "Attachment", "File", "Cv"])) ||
+        null;
+
+      return {
+        id: rec.id,
+        name:
+          getFirstString(getField(fields, ["Name", "Full Name", "FullName", "Név"])) ||
+          "Névtelen jelentkező",
+        email: getFirstString(getField(fields, ["Email", "E-mail", "E-mail cím"])),
+        phone: getFirstString(getField(fields, ["Phone", "Telefonszám", "Telefon"])),
+        city:
+          getFirstString(getField(fields, ["City", "Lakhely", "Location", "Honnan jelentkezel?"])) ||
+          "-",
+        cvUrl: cvAttachment?.url || "",
+        cvName: cvAttachment?.filename || "",
+        message:
+          getFirstString(getField(fields, ["Message", "Cover Letter", "Üzenet"])) ||
+          "-",
+        status: getFirstString(getField(fields, ["Status", "Státusz"])) || "Új",
+        createdDate: formatDate(
+          getField(fields, ["Created", "Created time", "Created At", "Jelentkezés ideje"])
+        ),
+      };
+    });
   } catch (err) {
     console.error("Hiba a jelentkezők betöltésekor:", err);
     applicantsLoadError = true;
   }
 
   const applicationsCount = allApplicantRecords.length;
+  const withCvCount = allApplicantRecords.filter((a) => a.cvUrl).length;
   const unlocked = isJobUnlocked(mappedJob);
   const visibleLimit = 5;
   const isLocked = applicationsCount > visibleLimit && !unlocked;
@@ -311,213 +338,235 @@ export default async function AdminJobApplicationsPage({ params }: PageProps) {
     ? allApplicantRecords
     : allApplicantRecords.slice(0, visibleLimit);
 
+  const latestApplication = visibleApplicantRecords[0]?.createdDate || "-";
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f4f7f9] text-slate-900">
+    <main className="relative min-h-screen overflow-hidden bg-[#f5f8fb] text-slate-950">
       <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[#f4f7f9]" />
-        <div className="absolute left-[-120px] top-[-100px] h-[320px] w-[320px] rounded-full bg-cyan-200/34 blur-[110px]" />
-        <div className="absolute right-[-120px] top-[40px] h-[340px] w-[340px] rounded-full bg-sky-200/28 blur-[120px]" />
-        <div className="absolute bottom-[-140px] left-[35%] h-[320px] w-[320px] rounded-full bg-emerald-100/28 blur-[120px]" />
+        <div className="absolute inset-0 bg-[#f5f8fb]" />
+        <div className="absolute left-[-160px] top-[-140px] h-[380px] w-[380px] rounded-full bg-cyan-200/45 blur-[120px]" />
+        <div className="absolute right-[-120px] top-[80px] h-[360px] w-[360px] rounded-full bg-violet-200/25 blur-[120px]" />
+        <div className="absolute bottom-[-160px] left-[35%] h-[360px] w-[360px] rounded-full bg-emerald-100/35 blur-[120px]" />
         <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(#0f172a_1px,transparent_1px)] [background-size:22px_22px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.18),rgba(255,255,255,0.70))]" />
       </div>
 
-      <div className="mx-auto max-w-7xl p-6 md:p-8">
-        <div className="mb-8">
+      <div className="mx-auto max-w-7xl px-5 py-6 md:px-8 md:py-8">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
           <Link
             href="/admin"
-            className="inline-flex items-center rounded-2xl border border-white/90 bg-white/82 px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_10px_26px_rgba(15,23,42,0.05)] backdrop-blur-md transition hover:bg-white"
+            className="inline-flex items-center rounded-2xl border border-slate-200/70 bg-white/90 px-4 py-3 text-sm font-black text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white"
           >
             ← Vissza az admin felületre
           </Link>
-        </div>
-
-        <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <SectionTag>Jelentkezők</SectionTag>
-            <h1 className="mt-6 text-[42px] font-black leading-tight tracking-[-0.05em] text-slate-950 lg:text-[56px]">
-              {title}
-            </h1>
-            <p className="mt-2 font-medium text-slate-600">Összesen {applicationsCount} jelentkező</p>
-          </div>
 
           <Link
             href={`/admin/jobs/${id}`}
-            className="inline-flex w-fit items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800"
+            className="inline-flex items-center justify-center rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-3 text-sm font-black text-cyan-800 shadow-[0_12px_28px_rgba(6,182,212,0.08)] transition hover:-translate-y-0.5 hover:bg-cyan-100"
           >
             Állás részletei
           </Link>
         </div>
 
-        {isLocked && (
-          <div className="mb-8 rounded-[30px] border border-rose-200 bg-[linear-gradient(180deg,rgba(255,241,242,0.98),rgba(255,228,230,0.78))] p-8 shadow-[0_18px_40px_rgba(244,63,94,0.08)]">
-            <div className="flex items-start gap-5">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-100 ring-1 ring-rose-200">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-rose-500"
-                >
-                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
+        <section className="mb-5 rounded-[30px] border border-white/90 bg-white/86 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur-xl md:p-6">
+          <div className="grid gap-5 lg:grid-cols-[1fr_430px] lg:items-end">
+            <div>
+              <SectionTag>Jelentkezők</SectionTag>
+
+              <div className="mt-4 flex flex-wrap items-end gap-3">
+                <h1 className="text-[40px] font-black leading-[0.92] tracking-[-0.06em] text-slate-950 md:text-[56px]">
+                  {title}
+                </h1>
+                <span className="mb-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-black text-blue-700">
+                  {applicationsCount} jelentkező
+                </span>
               </div>
 
-              <div>
-                <h2 className="text-xl font-bold tracking-[-0.03em] text-slate-900">
-                  Elérted az 5 jelentkezős limitet
-                </h2>
-                <p className="mt-1 font-medium text-slate-600">
-                  Jelenleg további <strong>{applicationsCount - visibleLimit}</strong> jelentkező várja
-                  elrejtve, hogy megnézd az adatait.
-                </p>
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600 md:text-base">
+                Kompakt jelöltlista gyors kapcsolatfelvételhez: telefon, e-mail, lakhely, CV és üzenet.
+              </p>
+            </div>
 
-                <div className="mt-4">
-                  <Link
-                    href="/admin/billing"
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
-                  >
-                    Feloldás fizetéssel / Kampány aktiválása
-                  </Link>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-[22px] border border-blue-200 bg-blue-50/90 p-4 shadow-[0_14px_32px_rgba(59,130,246,0.08)]">
+                <div className="text-3xl font-black text-slate-950">{applicationsCount}</div>
+                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
+                  Összes
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-emerald-200 bg-emerald-50/90 p-4 shadow-[0_14px_32px_rgba(16,185,129,0.08)]">
+                <div className="text-3xl font-black text-slate-950">{withCvCount}</div>
+                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                  CV feltöltve
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-violet-200 bg-violet-50/90 p-4 shadow-[0_14px_32px_rgba(139,92,246,0.08)]">
+                <div className="truncate text-lg font-black text-slate-950">{latestApplication}</div>
+                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">
+                  Legutóbbi
                 </div>
               </div>
             </div>
           </div>
+        </section>
+
+        {isLocked && (
+          <div className="mb-5 rounded-[28px] border border-rose-200 bg-rose-50 p-6 shadow-[0_18px_40px_rgba(244,63,94,0.08)]">
+            <h2 className="text-xl font-black tracking-[-0.03em] text-slate-900">
+              Elérted az 5 jelentkezős limitet
+            </h2>
+            <p className="mt-2 font-semibold text-slate-600">
+              További <strong>{applicationsCount - visibleLimit}</strong> jelentkező vár elrejtve.
+            </p>
+            <Link
+              href="/admin/billing"
+              className="mt-5 inline-flex rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-3 text-sm font-black text-white shadow-md"
+            >
+              Feloldás / Kampány aktiválása
+            </Link>
+          </div>
         )}
 
-        <div className="space-y-6">
-          {!applicantsLoadError && visibleApplicantRecords.length === 0 && (
-            <div className="flex flex-col items-center justify-center rounded-[28px] border border-white/85 bg-white/82 p-16 text-center shadow-[0_18px_45px_rgba(15,23,42,0.07)] backdrop-blur-md">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+        {applicantsLoadError && (
+          <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 font-bold text-red-600">
+            Hiba történt a jelentkezők betöltésekor. Próbáld újra később.
+          </div>
+        )}
+
+        {!applicantsLoadError && visibleApplicantRecords.length === 0 && (
+          <div className="rounded-[32px] border border-white/85 bg-white/82 p-14 text-center shadow-[0_18px_45px_rgba(15,23,42,0.07)] backdrop-blur-md">
+            <h3 className="text-2xl font-black text-slate-900">Még nincsenek jelentkezők</h3>
+            <p className="mt-3 font-semibold text-slate-500">
+              Ide fognak beérkezni az állásra jelentkezők adatai.
+            </p>
+          </div>
+        )}
+
+        {visibleApplicantRecords.length > 0 && (
+          <section className="rounded-[30px] border border-white/90 bg-white/82 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur-xl md:p-5">
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-xl font-black tracking-[-0.04em] text-slate-950">
+                  Beérkezett jelöltek
+                </h2>
+                <p className="text-sm font-bold text-slate-500">
+                  Gyors kapcsolatfelvétel: hívás, e-mail, CV egy sorban.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-600">
+                {visibleApplicantRecords.length} megjelenítve
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {visibleApplicantRecords.map((applicant, index) => (
+                <article
+                  key={applicant.id}
+                  className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-cyan-300 via-emerald-300 via-yellow-300 via-orange-300 to-fuchsia-400 p-[2px] shadow-[0_12px_30px_rgba(15,23,42,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.09)]"
                 >
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <line x1="19" y1="8" x2="19" y2="14" />
-                  <line x1="22" y1="11" x2="16" y2="11" />
-                </svg>
-              </div>
+                  <div className="grid gap-4 rounded-[22px] bg-white/96 p-4 lg:grid-cols-[42px_1.1fr_1.2fr_1.2fr_auto] lg:items-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-sm font-black text-blue-700 ring-1 ring-blue-200">
+                      {index + 1}
+                    </div>
 
-              <h3 className="mb-2 text-xl font-bold text-slate-800">Még nincsenek jelentkezők</h3>
-              <p className="max-w-sm font-medium text-slate-500">
-                Ide fognak beérkezni az állásra jelentkezők profiljai.
-              </p>
+                    <div>
+                      <h3 className="text-lg font-black leading-tight tracking-[-0.03em] text-slate-950">
+                        {applicant.name}
+                      </h3>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                          📍 {applicant.city}
+                        </span>
+                        <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 ring-1 ring-cyan-200">
+                          {applicant.status}
+                        </span>
+                      </div>
+                    </div>
 
-              <Link
-                href={`/admin/jobs/${id}/campaign`}
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-600 transition-colors hover:text-blue-800"
-              >
-                Indíts kampányt a gyorsabb eredményért →
-              </Link>
-            </div>
-          )}
+                    <div className="min-w-0">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                        Kapcsolat
+                      </div>
+                      <div className="mt-1 flex flex-col gap-1">
+                        {applicant.phone ? (
+                          <a
+                            href={`tel:${applicant.phone}`}
+                            className="text-sm font-black text-slate-900 hover:text-cyan-600"
+                          >
+                            {applicant.phone}
+                          </a>
+                        ) : (
+                          <span className="text-sm font-bold text-slate-400">Nincs telefonszám</span>
+                        )}
 
-          {applicantsLoadError && (
-            <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 font-semibold text-red-600 shadow-[0_16px_34px_rgba(239,68,68,0.06)]">
-              Hiba történt a jelentkezők betöltésekor. Próbáld újra később.
-            </div>
-          )}
+                        {applicant.email ? (
+                          <a
+                            href={`mailto:${applicant.email}`}
+                            className="truncate text-sm font-semibold text-slate-500 hover:text-cyan-600"
+                          >
+                            {applicant.email}
+                          </a>
+                        ) : (
+                          <span className="text-sm font-bold text-slate-400">Nincs e-mail</span>
+                        )}
+                      </div>
+                    </div>
 
-          {visibleApplicantRecords.length > 0 && (
-            <div className="overflow-hidden rounded-[24px] border border-white/85 bg-white/82 shadow-[0_14px_36px_rgba(15,23,42,0.05)] backdrop-blur-md">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-600">
-                  <thead className="border-b border-slate-100/80 bg-slate-50/50 text-xs uppercase tracking-wider text-slate-500">
-                    <tr>
-                      <th scope="col" className="px-6 py-4 font-bold">
-                        Név
-                      </th>
-                      <th scope="col" className="px-6 py-4 font-bold">
-                        Elérhetőség
-                      </th>
-                      <th scope="col" className="px-6 py-4 font-bold">
+                    <div className="min-w-0 rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
                         Üzenet
-                      </th>
-                      <th scope="col" className="px-6 py-4 font-bold">
-                        Státusz
-                      </th>
-                      <th scope="col" className="px-6 py-4 text-right font-bold">
-                        Jelentkezés ideje
-                      </th>
-                    </tr>
-                  </thead>
+                      </div>
+                      <p className="mt-1 truncate text-sm font-semibold text-slate-600">
+                        {applicant.message}
+                      </p>
+                    </div>
 
-                  <tbody className="divide-y divide-slate-100/80">
-                    {visibleApplicantRecords.map((applicant) => (
-                      <tr key={applicant.id} className="transition-colors hover:bg-slate-50/50">
-                        <td className="whitespace-nowrap px-6 py-5">
-                          <div className="text-[15px] font-bold text-slate-900">
-                            {applicant.name || "Névtelen jelentkező"}
-                          </div>
-                        </td>
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      {applicant.phone && (
+                        <a
+                          href={`tel:${applicant.phone}`}
+                          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-black text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          Hívás
+                        </a>
+                      )}
 
-                        <td className="px-6 py-5">
-                          <div className="flex flex-col gap-1.5">
-                            {applicant.email && (
-                              <a
-                                href={`mailto:${applicant.email}`}
-                                className="text-slate-600 hover:text-blue-600 hover:underline"
-                              >
-                                {applicant.email}
-                              </a>
-                            )}
+                      {applicant.email && (
+                        <a
+                          href={`mailto:${applicant.email}`}
+                          className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-black text-blue-700 transition hover:bg-blue-100"
+                        >
+                          E-mail
+                        </a>
+                      )}
 
-                            {applicant.phone && (
-                              <a
-                                href={`tel:${applicant.phone}`}
-                                className="text-slate-600 hover:text-blue-600 hover:underline"
-                              >
-                                {applicant.phone}
-                              </a>
-                            )}
+                      {applicant.cvUrl ? (
+                        <a
+                          href={applicant.cvUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-black text-violet-700 transition hover:bg-violet-100"
+                        >
+                          CV
+                        </a>
+                      ) : (
+                        <span className="rounded-2xl border border-violet-100 bg-violet-50/70 px-4 py-2.5 text-sm font-black text-violet-300">
+                          Nincs CV
+                        </span>
+                      )}
+                    </div>
 
-                            {!applicant.email && !applicant.phone && (
-                              <span className="italic text-slate-400">Nincs megadva</span>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-5">
-                          <div className="max-w-xs truncate text-[13px] text-slate-500" title={applicant.message}>
-                            {applicant.message || "-"}
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-5">
-                          <span className="inline-flex rounded-lg bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-200">
-                            {applicant.status || "Új"}
-                          </span>
-                        </td>
-
-                        <td className="whitespace-nowrap px-6 py-5 text-right">
-                          <span className="inline-flex items-center rounded-lg bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
-                            {applicant.createdDate}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    <div className="text-xs font-bold text-slate-400 lg:col-span-5 lg:-mt-2 lg:pl-14">
+                      Jelentkezés ideje: {applicant.createdDate}
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
-          )}
-        </div>
+          </section>
+        )}
       </div>
     </main>
   );
