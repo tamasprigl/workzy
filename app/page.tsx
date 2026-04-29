@@ -13,6 +13,7 @@ const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 // ─── Nav ─────────────────────────────────────────────────────────────────────
 
 const navItems = [
+  ["/jobs", "Állások"],
   ["#problem", "Miért Workzy?"],
   ["#system", "Rendszer"],
   ["#features", "Funkciók"],
@@ -43,15 +44,25 @@ function Header() {
             </Link>
 
             <nav className="hidden items-center gap-7 lg:flex">
-              {navItems.map(([href, label]) => (
-                <a
-                  key={href}
-                  href={href}
-                  className="text-sm font-bold text-slate-500 transition hover:text-slate-950"
-                >
-                  {label}
-                </a>
-              ))}
+              {navItems.map(([href, label]) =>
+                href.startsWith("/") ? (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="text-sm font-bold text-slate-500 transition hover:text-slate-950"
+                  >
+                    {label}
+                  </Link>
+                ) : (
+                  <a
+                    key={href}
+                    href={href}
+                    className="text-sm font-bold text-slate-500 transition hover:text-slate-950"
+                  >
+                    {label}
+                  </a>
+                )
+              )}
             </nav>
 
             <div className="flex items-center gap-2 sm:gap-3">
@@ -1009,6 +1020,14 @@ function FAQSection() {
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
+const legalLinks = [
+  ["/impresszum", "Impresszum"],
+  ["/adatkezelesi-tajekoztato", "Adatkezelési tájékoztató"],
+  ["/cookie-tajekoztato", "Cookie tájékoztató"],
+  ["/aszf", "ÁSZF"],
+  ["/panaszkezeles", "Panaszkezelés"],
+];
+
 function Footer() {
   return (
     <footer className="relative z-10 mt-8 border-t border-white/70">
@@ -1027,6 +1046,19 @@ function Footer() {
             Állást adok fel
           </Link>
         </div>
+
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4 border-t border-white/70 pt-6 text-sm text-slate-500">
+          {legalLinks.map(([href, label]) => (
+            <Link
+              key={href}
+              href={href}
+              className="font-semibold text-slate-500 transition hover:text-slate-900"
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+
         <div className="mt-10 flex flex-col gap-3 border-t border-white/70 pt-6 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
           <div>© 2026 Workzy. Minden jog fenntartva.</div>
           <div>AI-alapú toborzási rendszer</div>

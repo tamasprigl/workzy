@@ -56,6 +56,27 @@ export default async function AccountOnboardingPage({ searchParams }: PageProps)
             />
           </div>
 
+          <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <input
+              id="legalConsent"
+              name="legalConsent"
+              type="checkbox"
+              required
+              className="mt-1 h-5 w-5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+            />
+            <label htmlFor="legalConsent" className="text-sm font-medium text-slate-700">
+              Elfogadom az{" "}
+              <a href="/aszf" target="_blank" className="text-sky-600 hover:underline">
+                ÁSZF
+              </a>
+              -et és az{" "}
+              <a href="/adatkezelesi-tajekoztato" target="_blank" className="text-sky-600 hover:underline">
+                adatkezelési tájékoztatót
+              </a>
+              *
+            </label>
+          </div>
+
           <button
             type="submit"
             className="w-full rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-500 px-6 py-4 font-bold text-white shadow-[0_20px_45px_rgba(14,165,233,0.28)] transition hover:scale-[1.01] active:scale-[0.99]"

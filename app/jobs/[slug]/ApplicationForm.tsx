@@ -362,6 +362,23 @@ export default function ApplicationForm({
         )}
 
         <div className="flex flex-col gap-6 pt-4">
+          <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <input
+              id="privacyConsent"
+              name="privacyConsent"
+              type="checkbox"
+              required
+              className="mt-1 h-5 w-5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+            />
+            <label htmlFor="privacyConsent" className="text-sm font-medium text-slate-700">
+              Elfogadom az{" "}
+              <a href="/adatkezelesi-tajekoztato" target="_blank" className="text-sky-600 hover:underline">
+                adatkezelési tájékoztatót
+              </a>
+              *
+            </label>
+          </div>
+
           <p className="text-sm leading-6 text-slate-500">
             A jelentkezés elküldésével hozzájárulsz ahhoz, hogy az adataid a
             kiválasztási folyamatban felhasználásra kerüljenek.
