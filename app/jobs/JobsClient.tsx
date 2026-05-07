@@ -142,7 +142,7 @@ function CustomSelect({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-14 w-full items-center justify-between rounded-2xl border border-slate-200/90 bg-white px-4 text-sm font-black text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.06)] outline-none transition hover:border-sky-200 focus:border-sky-300 focus:ring-4 focus:ring-sky-100"
+        className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200/90 bg-white px-3.5 text-sm font-black text-slate-700 shadow-[0_6px_16px_rgba(15,23,42,0.06)] outline-none transition hover:border-sky-200 focus:border-sky-300 focus:ring-4 focus:ring-sky-100"
         aria-label={label}
       >
         <span className="truncate">{selectedOption.label}</span>
@@ -187,86 +187,75 @@ function JobCard({ job, featured = false }: { job: JobItem; featured?: boolean }
 
   return (
     <div className="group relative h-full">
-      <div className="absolute -inset-[1px] rounded-[30px] bg-gradient-to-r from-sky-400/45 via-cyan-300/35 to-blue-500/45 opacity-0 blur-xl transition-all duration-500 group-hover:opacity-100" />
+      <div className="absolute -inset-[1px] rounded-[24px] bg-gradient-to-b from-slate-200/60 to-slate-300/40 opacity-0 blur-md transition-all duration-300 group-hover:opacity-100" />
 
       <Link
         href={`/jobs/${job.slug}`}
-        className="relative flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_30px_80px_rgba(14,165,233,0.16)]"
+        className="relative flex h-full flex-col overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-[3px] hover:border-slate-300/90 hover:shadow-[0_8px_24px_rgba(15,23,42,0.10)]"
       >
-        <div className="relative flex h-[200px] w-full items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 via-white to-sky-50 p-3">
-          <Image
-            src={image}
-            alt={job.title || "Állás"}
-            fill
-            className="object-contain p-3 transition duration-500 group-hover:scale-[1.035]"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-          />
+        <div className="relative flex h-[192px] w-full items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 via-white to-sky-50">
+          <div className="relative h-[170px] w-[78%]">
+            <Image
+              src={image}
+              alt={job.title || "Állás"}
+              fill
+              className="object-contain transition duration-300 group-hover:scale-[1.02]"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            />
+          </div>
 
-          <div className="absolute left-4 top-4 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-600 shadow-[0_8px_20px_rgba(15,23,42,0.10)] backdrop-blur">
+          <div className="absolute left-2.5 top-2.5 rounded-full border border-white/80 bg-white/95 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-600 shadow-[0_4px_10px_rgba(15,23,42,0.10)] backdrop-blur">
             Aktív
           </div>
 
-          <div className="absolute right-4 top-4 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 shadow-[0_8px_20px_rgba(15,23,42,0.10)] backdrop-blur">
+          <div className="absolute right-2.5 top-2.5 rounded-full border border-white/80 bg-white/95 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500 shadow-[0_4px_10px_rgba(15,23,42,0.10)] backdrop-blur">
             {jobType}
           </div>
 
           {featured && (
-            <div className="absolute bottom-4 left-4 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[0_12px_30px_rgba(14,165,233,0.28)]">
+            <div className="absolute bottom-2.5 left-2.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-white shadow-[0_6px_16px_rgba(14,165,233,0.28)]">
               Kiemelt
             </div>
           )}
         </div>
 
-        <div className="flex flex-1 flex-col p-5">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="inline-flex min-w-0 items-center gap-2 rounded-full bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">
-              <span>📍</span>
+        <div className="flex flex-1 flex-col px-4 pb-4 pt-3">
+          {/* location + company — single line */}
+          <div className="flex h-6 items-center justify-between gap-2 overflow-hidden">
+            <div className="inline-flex min-w-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700 overflow-hidden">
+              <span className="shrink-0">📍</span>
               <span className="truncate">{job.location || "Helyszín egyeztetés szerint"}</span>
             </div>
+            <div className="max-w-[90px] shrink-0 truncate text-[11px] font-semibold text-slate-400">
+              {job.company || ""}
+            </div>
+          </div>
 
-            {job.company && (
-              <div className="max-w-[120px] truncate text-xs font-semibold text-slate-400">
-                {job.company}
+          {/* title — always 2-line height */}
+          <h2 className="mt-2 line-clamp-2 h-[2.625rem] text-[15px] font-black leading-snug tracking-[-0.02em] text-slate-900">
+            {job.title || "Nyitott pozíció"}
+          </h2>
+
+          {/* salary — fixed slot, blank when absent */}
+          <div className="mt-2 h-[46px]">
+            {job.salary && (
+              <div className="flex h-full flex-col justify-center rounded-xl border border-sky-100 bg-gradient-to-r from-sky-50 to-blue-50 px-3">
+                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-sky-600/80">Bér</div>
+                <div className="truncate text-[13px] font-black leading-tight text-sky-700">{job.salary}</div>
               </div>
             )}
           </div>
 
-          <h2 className="line-clamp-2 text-[21px] font-black leading-tight tracking-[-0.035em] text-slate-900">
-            {job.title || "Nyitott pozíció"}
-          </h2>
-
-          {job.salary && (
-            <div className="mt-4 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 to-blue-50 px-4 py-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-600/80">
-                Bér
-              </div>
-              <div className="mt-1 truncate text-[19px] font-black text-sky-700">
-                {job.salary}
-              </div>
-            </div>
-          )}
-
-          {job.shortDescription && (
-            <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">
-              {job.shortDescription}
+          {/* description — fixed 2-line slot */}
+          <div className="mt-1.5 h-8 overflow-hidden">
+            <p className="line-clamp-2 text-[11px] leading-[1.5] text-slate-500">
+              {job.shortDescription || ""}
             </p>
-          )}
+          </div>
 
-          {benefits.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {benefits.map((benefit) => (
-                <span
-                  key={benefit}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600"
-                >
-                  {benefit}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-auto pt-5">
-            <div className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition group-hover:bg-gradient-to-r group-hover:from-cyan-500 group-hover:to-blue-500">
+          {/* CTA pinned to bottom */}
+          <div className="mt-auto pt-2.5">
+            <div className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-bold text-white transition duration-200 group-hover:bg-slate-700">
               Részletek megtekintése →
             </div>
           </div>
@@ -368,29 +357,29 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
     <main className="min-h-screen bg-[#f4f7f9] text-slate-900">
       <section className="relative overflow-visible z-20">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.18),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.14),transparent_30%)] pointer-events-none" />
-        <div className="absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 rounded-full bg-sky-200/35 blur-3xl pointer-events-none" />
+        <div className="absolute left-1/2 top-0 h-56 w-56 -translate-x-1/2 rounded-full bg-sky-200/30 blur-3xl pointer-events-none" />
 
-        <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10 z-40">
-          <div className="mx-auto max-w-4xl text-center">
-            <div className="inline-flex items-center rounded-full border border-sky-100 bg-white/86 px-4 py-2 text-sm font-bold text-sky-700 shadow-[0_10px_26px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="relative mx-auto max-w-[1500px] px-4 py-4 xl:px-6 2xl:px-8 lg:py-5 z-40">
+          <div className="mx-auto max-w-2xl text-center">
+            <div className="inline-flex items-center rounded-full border border-sky-100 bg-white/86 px-3.5 py-1.5 text-xs font-bold text-sky-700 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur">
               Aktív állások
             </div>
 
-            <h1 className="mt-4 text-[36px] font-black tracking-[-0.05em] text-slate-900 sm:text-5xl lg:text-[58px] lg:leading-[1.02]">
+            <h1 className="mt-3 text-[28px] font-black tracking-[-0.045em] text-slate-900 sm:text-4xl lg:text-[46px] lg:leading-[1.05]">
               Találd meg a következő munkád
             </h1>
 
-            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
               Szűrj helyszín, munkatípus és kulcsszó szerint, majd jelentkezz gyorsan.
             </p>
           </div>
 
-          <div className="relative mx-auto mb-10 mt-6 max-w-6xl z-50 overflow-visible lg:mb-16">
+          <div className="relative mx-auto mb-4 mt-4 max-w-[1200px] z-50 overflow-visible lg:mb-5">
             <div className="group relative">
-              <div className="absolute -inset-[3px] rounded-[38px] bg-gradient-to-r from-cyan-400/50 via-sky-300/40 to-blue-500/50 blur-[24px] transition-all duration-500 group-hover:opacity-100 opacity-60" />
-              <div className="absolute -inset-[1px] rounded-[36px] bg-gradient-to-r from-cyan-300/70 via-white/80 to-blue-400/70 transition-all duration-500 group-hover:opacity-100 opacity-80" />
+              <div className="absolute -inset-[3px] rounded-[28px] bg-gradient-to-r from-cyan-400/50 via-sky-300/40 to-blue-500/50 blur-[18px] transition-all duration-500 group-hover:opacity-100 opacity-60" />
+              <div className="absolute -inset-[1px] rounded-[26px] bg-gradient-to-r from-cyan-300/70 via-white/80 to-blue-400/70 transition-all duration-500 group-hover:opacity-100 opacity-80" />
 
-              <div className="relative rounded-[34px] border border-white/95 bg-white/95 p-4 shadow-[0_34px_100px_rgba(14,165,233,0.22)] backdrop-blur-2xl sm:p-5">
+              <div className="relative rounded-[24px] border border-white/95 bg-white/95 p-3 shadow-[0_20px_60px_rgba(14,165,233,0.18)] backdrop-blur-2xl sm:p-3.5">
                 <div className="grid gap-3 lg:grid-cols-[1fr_210px_210px_170px_115px]">
                   <div className="relative">
                     <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
@@ -400,7 +389,7 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Keresés pozíció, cég vagy bér alapján..."
-                      className="h-14 w-full rounded-2xl border border-slate-200/90 bg-white pl-12 pr-4 text-sm font-semibold text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.06)] outline-none transition placeholder:text-slate-400 hover:border-sky-200 focus:border-sky-300 focus:ring-4 focus:ring-sky-100"
+                      className="h-10 w-full rounded-xl border border-slate-200/90 bg-white pl-10 pr-4 text-sm font-semibold text-slate-900 shadow-[0_6px_16px_rgba(15,23,42,0.06)] outline-none transition placeholder:text-slate-400 hover:border-sky-200 focus:border-sky-300 focus:ring-4 focus:ring-sky-100"
                     />
                   </div>
 
@@ -433,7 +422,7 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
                     ]}
                   />
 
-                  <div className="flex h-14 items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
+                  <div className="flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-black text-white shadow-[0_8px_20px_rgba(15,23,42,0.18)]">
                     {filteredJobs.length} állás
                   </div>
                 </div>
@@ -442,7 +431,7 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
                   selectedLocation !== "Összes" ||
                   selectedJobType !== "Összes" ||
                   sortBy !== "Legújabb") && (
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-2">
                     <div className="text-sm font-medium text-slate-500">
                       Aktív szűrés:{" "}
                       <span className="font-bold text-slate-800">
@@ -464,10 +453,10 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
         </div>
       </section>
 
-      <section className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-12 sm:px-6 lg:px-8">
+      <section className="relative z-10 mx-auto max-w-[1800px] px-4 pb-14 pt-5 xl:px-6 2xl:px-8">
         {filteredJobs.length > 0 ? (
           <div>
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-black tracking-[-0.03em] text-slate-900">
                 Elérhető pozíciók
               </h2>
@@ -476,7 +465,7 @@ export default function JobsClient({ jobsList }: JobsClientProps) {
               </div>
             </div>
 
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredJobs.map((job, index) => (
                 <JobCard key={job.slug} job={job} featured={index === 0} />
               ))}
