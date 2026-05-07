@@ -25,6 +25,7 @@ const initialFormData: JobFormData = {
   platform: "facebook",
   campaignLocation: "",
   objective: "Jelentkezők gyűjtése",
+  applicationQuestions: [],
 };
 
 export default function NewJobPage() {
