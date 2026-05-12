@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npx next *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-user-workzy\\\\227fbef8-f574-4540-86f8-0567e87919d6\\\\tasks\\\\bckrsfjgl.output\" -Wait -Tail 30)",
+      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)"
     ]
   }
 }

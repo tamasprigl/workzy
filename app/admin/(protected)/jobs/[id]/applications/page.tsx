@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { verifyAuthToken } from "@/lib/auth";
 import { mapJobRecord } from "@/lib/airtable";
 import ApplicationStatusSelect from "@/components/admin/ApplicationStatusSelect";
+import { ApplicantMessage } from "@/components/admin/ApplicantMessage";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -469,9 +470,9 @@ export default async function AdminJobApplicationsPage({ params }: PageProps) {
               {visibleApplicantRecords.map((applicant, index) => (
                 <article
                   key={applicant.id}
-                  className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-cyan-300 via-emerald-300 via-yellow-300 via-orange-300 to-fuchsia-400 p-[2px] shadow-[0_12px_30px_rgba(15,23,42,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.09)]"
+                  className="relative overflow-visible rounded-[24px] bg-gradient-to-r from-cyan-300 via-emerald-300 via-yellow-300 via-orange-300 to-fuchsia-400 p-[2px] shadow-[0_12px_30px_rgba(15,23,42,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.09)]"
                 >
-                  <div className="grid gap-4 rounded-[22px] bg-white/96 p-4 lg:grid-cols-[42px_1.1fr_1.2fr_1.2fr_auto] lg:items-center">
+                  <div className="grid gap-4 rounded-[22px] bg-white/96 p-4 lg:grid-cols-[42px_1.1fr_1.2fr_1.2fr_auto] lg:items-start">
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-sm font-black text-blue-700 ring-1 ring-blue-200">
                       {index + 1}
                     </div>
@@ -517,13 +518,8 @@ export default async function AdminJobApplicationsPage({ params }: PageProps) {
                       </div>
                     </div>
 
-                    <div className="min-w-0 rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-                        Üzenet
-                      </div>
-                      <p className="mt-1 truncate text-sm font-semibold text-slate-600">
-                        {applicant.message}
-                      </p>
+                    <div className="min-w-0">
+                      <ApplicantMessage message={applicant.message} />
                     </div>
 
                     <div className="flex flex-wrap gap-2 lg:justify-end">
