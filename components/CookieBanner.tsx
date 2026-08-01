@@ -30,9 +30,10 @@ export function CookieBanner() {
       <div className="mb-6 sm:mb-0 sm:pr-8">
         <h3 className="mb-2 text-lg font-bold text-slate-900">Cookie-kat használunk</h3>
         <p className="text-sm text-slate-600">
-          A weboldal működéséhez elengedhetetlen sütik mellett statisztikai és marketing célú sütiket is használunk a legjobb felhasználói élmény érdekében. Részletek a{" "}
+          A weboldal működéséhez elengedhetetlen sütiket használunk. Analitikai vagy marketing célú sütiket csak a hozzájárulásod után
+          kapcsolnánk be. Részletek a{" "}
           <Link href="/cookie-tajekoztato" className="font-semibold text-sky-600 underline">
-            Cookie tájékoztatóban
+            Cookie-tájékoztatóban
           </Link>.
         </p>
       </div>
