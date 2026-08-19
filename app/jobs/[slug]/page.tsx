@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import ApplicationForm from "./ApplicationForm";
 import { safeParseApplicationQuestions } from "@/lib/applicationQuestions";
+import { isV1ReadOnly, WORKZY_V2_ORIGIN } from "@/lib/read-only";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -332,21 +333,63 @@ export default async function PublicJobPage({ params }: PageProps) {
               </div>
 
               <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                Jelentkezz erre a pozícióra
+                {isV1ReadOnly()
+                  ? "Ez a hirdetés archív"
+                  : "Jelentkezz erre a pozícióra"}
               </h2>
 
               <p className="mt-2 text-slate-600">
-                Töltsd ki az adatokat, és a jelentkezés azonnal bekerül a
-                rendszerbe.
+                {isV1ReadOnly()
+                  ? "Ezen az oldalon már nem fogadunk jelentkezést."
+                  : "Töltsd ki az adatokat, és a jelentkezés azonnal bekerül a rendszerbe."}
               </p>
             </div>
 
-            <ApplicationForm
-              jobId={jobId}
-              jobSlug={slug}
-              jobTitle={jobTitle}
-              questions={applicationQuestions}
-            />
+            {/*
+              F05 C9 — the archive notice replaces the form entirely.
+
+              Not a disabled form and not a hidden submit button: the form is
+              not rendered at all, so there is nothing to re-enable from a
+              developer console. The server refuses independently anyway (see
+              `middleware.ts`, `app/api/applications/route.ts` and the Airtable
+              SDK guard) — this is the layer that stops a candidate wasting
+              their time before any of that is reached.
+
+              The link goes to the v2 job LIST rather than a deep link to the
+              equivalent advert. v2 job URLs are `/jobs/<uuid>/<slug>` and v1
+              holds no v2 uuid, so a deep link could only be guessed or
+              hard-coded — and a hard-coded map would rot on
+              2026-09-18T09:46:18.647655Z, when the grandfathered adverts stop
+              being publicly visible in v2 and every one of those URLs stops
+              resolving. The list is correct on both sides of that date.
+            */}
+            {isV1ReadOnly() ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+                <p className="text-sm font-semibold text-amber-900">
+                  A Workzy korábbi rendszerének archív oldala
+                </p>
+                <p className="mt-2 text-sm text-amber-900/90">
+                  Ez a Workzy régi rendszere, amelyet csak megtekintésre tartunk
+                  elérhetővé. Új jelentkezést itt már nem tudunk fogadni.
+                </p>
+                <p className="mt-4 text-sm text-amber-900/90">
+                  A jelenlegi Workzy itt érhető el:
+                </p>
+                <a
+                  href={WORKZY_V2_ORIGIN}
+                  className="mt-3 inline-flex items-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+                >
+                  Tovább a Workzy oldalára
+                </a>
+              </div>
+            ) : (
+              <ApplicationForm
+                jobId={jobId}
+                jobSlug={slug}
+                jobTitle={jobTitle}
+                questions={applicationQuestions}
+              />
+            )}
           </div>
         </div>
       </section>
