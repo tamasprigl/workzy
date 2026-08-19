@@ -1,8 +1,26 @@
 'use server';
 
 import Airtable from "airtable";
+import { isV1ReadOnly, READ_ONLY_MESSAGE_HU } from "@/lib/read-only";
 
 export async function submitApplicationAction(prevState: any, formData: FormData) {
+  /*
+   * C9 read-only: refuse before reading a single field off the form.
+   *
+   * This is the PRIMARY candidate write path — the rendered form on every v1
+   * job page posts here, not to /api/applications. Two layers already stand in
+   * front of it (middleware, and the Airtable SDK guard); this one exists for a
+   * different reason. The catch block below turns any thrown error into "Hiba
+   * történt a beküldés során. Kérjük, próbálja újra." A candidate told to try
+   * again would try again — forever, against a system that will never accept
+   * it. They get the truth and the live address instead.
+   *
+   * Nothing is parsed, nothing is uploaded, nothing is sent.
+   */
+  if (isV1ReadOnly()) {
+    return { success: false, readOnly: true, error: READ_ONLY_MESSAGE_HU };
+  }
+
   try {
     const airtableToken = process.env.AIRTABLE_TOKEN;
     const baseId = process.env.AIRTABLE_BASE_ID;

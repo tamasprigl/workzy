@@ -6,6 +6,11 @@ import {
   validateApplicationAnswers,
 } from "@/lib/applicationQuestions";
 import { put } from "@vercel/blob";
+import {
+  isV1ReadOnly,
+  readOnlyPayload,
+  READ_ONLY_HTTP_STATUS,
+} from "@/lib/read-only";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +27,28 @@ function normalizeString(value: unknown): string {
 }
 
 export async function POST(request: Request) {
+  /*
+   * C9 read-only: refuse before the multipart body is even read.
+   *
+   * Placement matters here more than anywhere else in v1. Below this line the
+   * handler parses form data, and further down it uploads the candidate's CV to
+   * Vercel Blob with `put()` — a real external write to a real storage account,
+   * which happens BEFORE the Airtable record is created. Guarding only the
+   * Airtable call would still have left an orphaned CV, containing a real
+   * person's data, in blob storage on every refused attempt.
+   *
+   * Nothing is parsed, nothing is uploaded, no Airtable call is made.
+   */
+  if (isV1ReadOnly()) {
+    return NextResponse.json(readOnlyPayload(), {
+      status: READ_ONLY_HTTP_STATUS,
+      headers: {
+        "Cache-Control": "no-store",
+        "X-Robots-Tag": "noindex, nofollow, noarchive",
+      },
+    });
+  }
+
   try {
     const formData = await request.formData();
     console.log("APPLICATION POST FORMDATA keys:", Array.from(formData.keys()));
